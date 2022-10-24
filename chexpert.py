@@ -147,10 +147,12 @@ def compute_metrics(outputs, targets, losses):
         precision[i], recall[i], _ = precision_recall_curve(targets[:, i], outputs[:, i])
         fpr[i], tpr[i], precision[i], recall[i] = fpr[i].tolist(), tpr[i].tolist(), precision[i].tolist(), recall[
             i].tolist()
+    mean_auc = sum(aucs.values()) / len(aucs)
 
     metrics = {'fpr': fpr,
                'tpr': tpr,
                'aucs': aucs,
+               'mean_auc': mean_auc,
                'precision': precision,
                'recall': recall,
                'loss': dict(enumerate(losses.mean(0).tolist()))}

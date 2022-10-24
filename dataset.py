@@ -37,7 +37,7 @@ class ChexpertSmall(Dataset):
             self.root = '.'  # base path; to be joined to filename in csv file in __getitem__
             self.data[self.attr_names] = pd.DataFrame(np.zeros((len(self.data), len(self.attr_names))))  # attr is vector of 0s under test
         else:
-            self._maybe_download_and_extract()
+            # self._maybe_download_and_extract()
             self._maybe_process(data_filter)
 
             data_file = os.path.join(self.root, self.dir_name, 'valid.pt' if mode in ['valid', 'vis'] else 'train.pt')
