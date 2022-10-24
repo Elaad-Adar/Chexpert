@@ -22,7 +22,7 @@ from functools import partial
 
 # dataset and models
 from dataset import ChexpertSmall, extract_patient_ids
-from torchvision.models import densenet121, resnet152
+from torchvision.models import densenet121, resnet152, DenseNet121_Weights, ResNet152_Weights
 from models.efficientnet import construct_model
 from models.attn_aug_conv import DenseNet, ResNet, Bottleneck
 
@@ -49,6 +49,7 @@ parser.add_argument('--model', default='densenet121',
 # data params
 parser.add_argument('--mini_data', type=int, help='Truncate dataset to this number of examples.')
 parser.add_argument('--resize', type=int, help='Size of minimum edge to which to resize images.')
+parser.add_argument('--frac', type=int, help='fraction of the data to use (e.g. use 80% of total train)')
 # training params
 parser.add_argument('--pretrained', action='store_true',
                     help='Use ImageNet pretrained model and normalize data mean and std.')
@@ -503,7 +504,10 @@ if __name__ == '__main__':
     # load model
     n_classes = len(ChexpertSmall.attr_names)
     if args.model == 'densenet121':
-        model = densenet121(pretrained=args.pretrained).to(args.device)
+        if args.pretrained:
+            model = densenet121(weights=DenseNet121_Weights.IMAGENET1K_V1).to(args.device)
+        else:
+            model = densenet121(weights=None).to(args.device)
         # 1. replace output layer with chexpert number of classes (pretrained loads ImageNet n_classes)
         model.classifier = nn.Linear(model.classifier.in_features, out_features=n_classes).to(args.device)
         # 2. init output layer with default torchvision init
@@ -524,7 +528,10 @@ if __name__ == '__main__':
         optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, nesterov=True)
         scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [40000, 60000])
     elif args.model == 'resnet152':
-        model = resnet152(pretrained=args.pretrained).to(args.device)
+        if args.pretrained:
+            model = resnet152(weights=ResNet152_Weights.DEFAULT).to(args.device)
+        else:
+            model = resnet152(weights=None).to(args.device)
         model.fc = nn.Linear(model.fc.in_features, out_features=n_classes).to(args.device)
         grad_cam_hooks = {'forward': model.layer4, 'backward': model.fc}
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
