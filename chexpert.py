@@ -598,6 +598,7 @@ if __name__ == '__main__':
         eval_metrics = evaluate_single_model(model, valid_dataloader, loss_fn, args)
         print('Evaluate metrics -- \n\t restore: {} \n\t step: {}:'.format(args.restore, args.step))
         print('AUC:\n', pprint.pformat(eval_metrics['aucs']))
+        print('Mean AUC:\n', pprint.pformat(eval_metrics['mean_auc']))
         print('Loss:\n', pprint.pformat(eval_metrics['loss']))
         save_json(eval_metrics, 'eval_results_step_{}'.format(args.step), args)
 
@@ -606,6 +607,7 @@ if __name__ == '__main__':
         eval_metrics = evaluate_ensemble(model, valid_dataloader, loss_fn, args)
         print('Evaluate ensemble metrics -- \n\t checkpoints path {}:'.format(args.restore))
         print('AUC:\n', pprint.pformat(eval_metrics['aucs']))
+        print('Mean AUC:\n', pprint.pformat(eval_metrics['mean_auc']))
         print('Loss:\n', pprint.pformat(eval_metrics['loss']))
         save_json(eval_metrics, 'eval_results_ensemble', args)
 
