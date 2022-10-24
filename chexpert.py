@@ -489,6 +489,8 @@ if __name__ == '__main__':
     # save config
     if not os.path.exists(os.path.join(args.output_dir, 'config.json')):
         save_json(args.__dict__, 'config', args)
+    with open('config.json', 'w') as f:
+        json.dump(args.__dict__, f, indent=4)
     writer.add_text('config', str(args.__dict__))
 
     args.device = torch.device(
