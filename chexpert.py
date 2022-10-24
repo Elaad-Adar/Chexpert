@@ -475,7 +475,7 @@ if __name__ == '__main__':
     if not args.output_dir:
         if args.restore:
             raise RuntimeError('Must specify `output_dir` argument')
-        args.output_dir: args.output_dir = os.path.join('results', time.strftime('%Y-%m-%d_%H-%M-%S', time.gmtime()))
+        args.output_dir: args.output_dir = os.path.join('results', time.strftime('%Y-%m-%d_%H-%M', time.gmtime()))
 
     # make new folders if they don't exist
     writer = SummaryWriter(logdir=args.output_dir)  # creates output_dir
