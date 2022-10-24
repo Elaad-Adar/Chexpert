@@ -266,6 +266,7 @@ def train_and_evaluate(model, train_dataloader, valid_dataloader, loss_fn, optim
         eval_metrics = evaluate_single_model(model, valid_dataloader, loss_fn, args)
         print('Evaluate metrics @ step {}:'.format(args.step))
         print('AUC:\n', pprint.pformat(eval_metrics['aucs']))
+        print('Mean AUC:\n', pprint.pformat(eval_metrics['mean_auc']))
         print('Loss:\n', pprint.pformat(eval_metrics['loss']))
         writer.add_scalar('eval_loss', np.sum(list(eval_metrics['loss'].values())), args.step)
         for k, v in eval_metrics['aucs'].items():
