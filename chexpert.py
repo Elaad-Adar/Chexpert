@@ -397,7 +397,7 @@ def visualize_one(model, img, mask, label, patient_id, prob, attr_names, axs):
 
 def vis_attn(x, patient_ids, idxs, attn_layers, args, batch_element=0):
     H, W = x.shape[2:]
-    nh = attn_layers[0].nh
+    nh = attn_layers['forward'].nh
 
     # select which pixels to visualize -- e.g. select virtices of a center square of side 1/3 of the image dims
     pix_to_vis = lambda h, w: [(h // 3, w // 3), (h // 3, int(2 * w / 3)), (int(2 * h / 3), w // 3),
