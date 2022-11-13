@@ -619,6 +619,9 @@ if __name__ == '__main__':
     if args.visualize:
         visualize(model, vis_dataloader, grad_cam_hooks, args)
         if grad_cam_hooks is not None:
+            print(f'grad_cam_hooks.items - {grad_cam_hooks.items()}')
+            print(f'grad_cam_hooks.keys - {grad_cam_hooks.keys()}')
+            print(f'grad_cam_hooks.values - {grad_cam_hooks.values()}')
             for x, _, idxs in vis_dataloader:
                 model(x.to(args.device))
                 patient_ids = extract_patient_ids(vis_dataloader.dataset, idxs)
