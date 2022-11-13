@@ -618,12 +618,12 @@ if __name__ == '__main__':
 
     if args.visualize:
         visualize(model, vis_dataloader, grad_cam_hooks, args)
-        if attn_hooks is not None:
+        if grad_cam_hooks is not None:
             for x, _, idxs in vis_dataloader:
                 model(x.to(args.device))
                 patient_ids = extract_patient_ids(vis_dataloader.dataset, idxs)
                 # visualize stored attention weights for each image
-                for i in range(len(x)): vis_attn(x, patient_ids, idxs, attn_hooks, args, i)
+                for i in range(len(x)): vis_attn(x, patient_ids, idxs, grad_cam_hooks, args, i)
 
     if args.plot_roc:
         # load results files from output_dir
