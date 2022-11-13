@@ -317,9 +317,11 @@ def grad_cam(model, x, hooks, cls_idx=None):
         t.add_(-min).div_(max - min + 1e-5)
 
     # for t in cam:  # loop over mini-batch dim
-    for i in range(cam.size(0)):  # loop over mini-batch dimension
-            t = cam[i]
-            norm_ip(t, float(t.min()), float(t.max()))
+    # for i in range(cam.size(0)): # loop over mini-batch dimension
+    for idx, _ in enumerate([jj for jj in cam]):
+        t = cam[idx]
+        # t = cam[i]
+        norm_ip(t, float(t.min()), float(t.max()))
 
     cam = F.interpolate(cam, x.shape[2:], mode='bilinear', align_corners=True)
 
