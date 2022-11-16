@@ -156,12 +156,12 @@ def compute_metrics(outputs, targets, losses):
 
     metrics = {
         'mean_auc': mean_auc,
+        'loss': dict(enumerate(losses.mean(0).tolist())),
         'aucs': aucs,
         'fpr': fpr,
         'tpr': tpr,
         'precision': precision,
-        'recall': recall,
-        'loss': dict(enumerate(losses.mean(0).tolist()))
+        'recall': recall
     }
 
     return metrics
