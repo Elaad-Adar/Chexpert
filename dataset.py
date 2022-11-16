@@ -24,7 +24,8 @@ class ChexpertSmall(Dataset):
     # select only the competition labels
     attr_names = ['Atelectasis', 'Cardiomegaly', 'Consolidation', 'Edema', 'Pleural Effusion']
 
-    def __init__(self, root, mode='train', transform=None, data_filter=None, mini_data=None):
+    def __init__(self, root, mode='train', transform=None, data_filter=None, mini_data=None, ext='jpg'):
+        self.ext = ext
         self.root = os.path.expanduser(root)
         self.transform = transform
         assert mode in ['train', 'valid', 'test', 'vis']
@@ -73,10 +74,16 @@ class ChexpertSmall(Dataset):
     def __getitem__(self, idx):
         # 1. select and load image
         img_path = self.data.iloc[idx, 0]  # 'Path' column is 0
-        img = Image.open(os.path.join(self.root, img_path))
-        if self.transform is not None:
-            img = self.transform(img)
-
+        if self.ext == 'jpg':
+            img = Image.open(os.path.join(self.root, img_path))
+            if self.transform is not None:
+                img = self.transform(img)
+        elif self.ext == 'npy':
+            tensor = np.load(os.path.join(self.root, img_path))
+            tensor = np.moveaxis(tensor, 2, 0)  # changing tensor shape to be channel first
+            img = torch.from_numpy(tensor).float()
+        else:
+            raise RuntimeError('file extension not supported, use jpg or npy')
         # 2. select attributes as targets
         attr = self.data.iloc[idx, self.attr_idxs].values.astype(np.float32)
         attr = torch.from_numpy(attr)
@@ -91,26 +98,26 @@ class ChexpertSmall(Dataset):
     def __len__(self):
         return len(self.data)
 
-    def _maybe_download_and_extract(self):
-        fpath = os.path.join(self.root, os.path.basename(self.url))
-        # if data dir does not exist, download file to root and unzip into dir_name
-        if not os.path.exists(os.path.join(self.root, self.dir_name)):
-            # check if zip file already downloaded
-            if not os.path.exists(os.path.join(self.root, os.path.basename(self.url))):
-                print('Downloading ' + self.url + ' to ' + fpath)
-                def _progress(count, block_size, total_size):
-                    sys.stdout.write('\r>> Downloading %s %.1f%%' % (fpath,
-                        float(count * block_size) / float(total_size) * 100.0))
-                    sys.stdout.flush()
-                request.urlretrieve(self.url, fpath, _progress)
-                print()
-            print('Extracting ' + fpath)
-            with zipfile.ZipFile(fpath, 'r') as z:
-                z.extractall(self.root)
-                if os.path.exists(os.path.join(self.root, self.dir_name, '__MACOSX')):
-                    os.rmdir(os.path.join(self.root, self.dir_name, '__MACOSX'))
-            os.unlink(fpath)
-            print('Dataset extracted.')
+    # def _maybe_download_and_extract(self):
+    #     fpath = os.path.join(self.root, os.path.basename(self.url))
+    #     # if data dir does not exist, download file to root and unzip into dir_name
+    #     if not os.path.exists(os.path.join(self.root, self.dir_name)):
+    #         # check if zip file already downloaded
+    #         if not os.path.exists(os.path.join(self.root, os.path.basename(self.url))):
+    #             print('Downloading ' + self.url + ' to ' + fpath)
+    #             def _progress(count, block_size, total_size):
+    #                 sys.stdout.write('\r>> Downloading %s %.1f%%' % (fpath,
+    #                     float(count * block_size) / float(total_size) * 100.0))
+    #                 sys.stdout.flush()
+    #             request.urlretrieve(self.url, fpath, _progress)
+    #             print()
+    #         print('Extracting ' + fpath)
+    #         with zipfile.ZipFile(fpath, 'r') as z:
+    #             z.extractall(self.root)
+    #             if os.path.exists(os.path.join(self.root, self.dir_name, '__MACOSX')):
+    #                 os.rmdir(os.path.join(self.root, self.dir_name, '__MACOSX'))
+    #         os.unlink(fpath)
+    #         print('Dataset extracted.')
 
     def _maybe_process(self, data_filter):
         # Dataset labels are: blank for unmentioned, 0 for negative, -1 for uncertain, and 1 for positive.
@@ -160,18 +167,18 @@ def extract_patient_ids(dataset, idxs):
     return dataset.data['Path'].loc[idxs].str.rsplit('/', expand=True, n=1)[0].values
 
 
-def compute_mean_and_std(dataset):
-    m = 0
-    s = 0
-    k = 1
-    for img, _, _ in tqdm(dataset):
-        x = img.mean().item()
-        new_m = m + (x - m)/k
-        s += (x - m)*(x - new_m)
-        m = new_m
-        k += 1
-    print('Number of datapoints: ', k)
-    return m, math.sqrt(s/(k-1))
+# def compute_mean_and_std(dataset):
+#     m = 0
+#     s = 0
+#     k = 1
+#     for img, _, _ in tqdm(dataset):
+#         x = img.mean().item()
+#         new_m = m + (x - m)/k
+#         s += (x - m)*(x - new_m)
+#         m = new_m
+#         k += 1
+#     print('Number of datapoints: ', k)
+#     return m, math.sqrt(s/(k-1))
 
 
 if __name__ == '__main__':

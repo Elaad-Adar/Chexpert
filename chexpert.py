@@ -50,6 +50,8 @@ parser.add_argument('--model', default='densenet121',
 parser.add_argument('--mini_data', type=int, help='Truncate dataset to this number of examples.')
 parser.add_argument('--resize', type=int, help='Size of minimum edge to which to resize images.')
 parser.add_argument('--frac', type=int, help='fraction of the data to use (e.g. use 80% of total train)')
+parser.add_argument('--ext', default='jpg',
+                    help='What data type extension to use [jpg, npy]')
 # training params
 parser.add_argument('--pretrained', action='store_true',
                     help='Use ImageNet pretrained model and normalize data mean and std.')
@@ -80,10 +82,10 @@ def fetch_dataloader(args, mode):
         T.Normalize(mean=[0.5330], std=[0.0349]),  # whiten with dataset mean and std
         lambda x: x.expand(3, -1, -1)])  # expand to 3 channels
 
-    dataset = ChexpertSmall(args.data_path, mode, transforms, mini_data=args.mini_data)
-
+    dataset = ChexpertSmall(args.data_path, mode, transforms, mini_data=args.mini_data, ext=args.ext)
+    # TODO add torch.utils.data.random_split(dataset, lengths) for train dataset, and change valid ==> test
     return DataLoader(dataset, args.batch_size, shuffle=(mode == 'train'), pin_memory=(args.device.type == 'cuda'),
-                      num_workers=0 if mode == 'valid' else 16)  # since evaluating the valid_dataloader is called inside the
+                      num_workers=0 if mode == 'valid' else 16)  # since evaluating the valid_dataloader is called inside the  if mode == 'valid' else 16
     # train_dataloader loop, 0 workers for valid_dataloader avoids
     # forking (cf torch dataloader docs); else memory sharing gets clunky
 
@@ -150,13 +152,15 @@ def compute_metrics(outputs, targets, losses):
             i].tolist()
     mean_auc = sum(aucs.values()) / len(aucs)
 
-    metrics = {'fpr': fpr,
-               'tpr': tpr,
-               'aucs': aucs,
-               'mean_auc': mean_auc,
-               'precision': precision,
-               'recall': recall,
-               'loss': dict(enumerate(losses.mean(0).tolist()))}
+    metrics = {
+        'mean_auc': mean_auc,
+        'aucs': aucs,
+        'fpr': fpr,
+        'tpr': tpr,
+        'precision': precision,
+        'recall': recall,
+        'loss': dict(enumerate(losses.mean(0).tolist()))
+    }
 
     return metrics
 
@@ -169,7 +173,7 @@ def train_epoch(model, train_dataloader, valid_dataloader, loss_fn, optimizer, s
     model.train()
 
     with tqdm(total=len(train_dataloader),
-              desc='Step at start {}; Training epoch {}/{}'.format(args.step, epoch + 1, args.n_epochs)) as pbar:
+              desc=f'Step at start {args.step}; Training epoch {epoch + 1}/{args.n_epochs}') as pbar:
         for x, target, idxs in train_dataloader:
             args.step += 1
 
@@ -501,6 +505,7 @@ if __name__ == '__main__':
 
     args.device = torch.device(
         'cuda:{}'.format(args.cuda) if args.cuda is not None and torch.cuda.is_available() else 'cpu')
+    print(f"using {args.device} as device")
 
     if args.seed:
         torch.manual_seed(args.seed)
@@ -512,7 +517,9 @@ if __name__ == '__main__':
         if args.pretrained:
             model = densenet121(weights=DenseNet121_Weights.IMAGENET1K_V1).to(args.device)
         else:
-            model = densenet121(weights=None).to(args.device)
+            # model = densenet121(weights=None).to(args.device)
+            model = DenseNet(32, (6, 12, 24, 16), 64, num_classes=n_classes, c_in=4).to(
+                args.device)
         # 1. replace output layer with chexpert number of classes (pretrained loads ImageNet n_classes)
         model.classifier = nn.Linear(model.classifier.in_features, out_features=n_classes).to(args.device)
         # 2. init output layer with default torchvision init
@@ -524,14 +531,14 @@ if __name__ == '__main__':
         scheduler = None
     #        optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, nesterov=True)
     #        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [40000, 60000])
-    elif args.model == 'aadensenet121':
-        model = DenseNet(32, (6, 12, 24, 16), 64, num_classes=n_classes,
-                         attn_params={'k': 0.2, 'v': 0.1, 'nh': 8, 'relative': True, 'input_dims': (320, 320)}).to(
-            args.device)
-        grad_cam_hooks = {'forward': model.features, 'backward': model.classifier}
-        attn_hooks = [model.features.transition1.conv, model.features.transition2.conv, model.features.transition3.conv]
-        optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, nesterov=True)
-        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [40000, 60000])
+    # elif args.model == 'aadensenet121':
+    #     model = DenseNet(32, (6, 12, 24, 16), 64, num_classes=n_classes,
+    #                      attn_params={'k': 0.2, 'v': 0.1, 'nh': 8, 'relative': True, 'input_dims': (320, 320)}).to(
+    #         args.device)
+    #     grad_cam_hooks = {'forward': model.features, 'backward': model.classifier}
+    #     attn_hooks = [model.features.transition1.conv, model.features.transition2.conv, model.features.transition3.conv]
+    #     optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, nesterov=True)
+    #     scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [40000, 60000])
     elif args.model == 'resnet152':
         if args.pretrained:
             model = resnet152(weights=ResNet152_Weights.DEFAULT).to(args.device)
