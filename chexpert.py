@@ -50,6 +50,8 @@ parser.add_argument('--model', default='densenet121',
 parser.add_argument('--mini_data', type=int, help='Truncate dataset to this number of examples.')
 parser.add_argument('--resize', type=int, help='Size of minimum edge to which to resize images.')
 parser.add_argument('--frac', type=int, help='fraction of the data to use (e.g. use 80% of total train)')
+parser.add_argument('--c_in', type=int, default=3,
+                    help='hpw many input channels (default 3)')
 parser.add_argument('--ext', default='jpg',
                     help='What data type extension to use [jpg, npy]')
 # training params
@@ -518,7 +520,7 @@ if __name__ == '__main__':
             model = densenet121(weights=DenseNet121_Weights.IMAGENET1K_V1).to(args.device)
         else:
             # model = densenet121(weights=None).to(args.device)
-            model = DenseNet(32, (6, 12, 24, 16), 64, num_classes=n_classes, c_in=4).to(
+            model = DenseNet(32, (6, 12, 24, 16), 64, num_classes=n_classes, c_in=args.c_in).to(
                 args.device)
         # 1. replace output layer with chexpert number of classes (pretrained loads ImageNet n_classes)
         model.classifier = nn.Linear(model.classifier.in_features, out_features=n_classes).to(args.device)
