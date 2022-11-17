@@ -77,12 +77,19 @@ parser.add_argument('--eval_interval', type=int, default=300,
 def fetch_dataloader(args, mode):
     assert mode in ['train', 'valid', 'vis']
 
-    transforms = T.Compose([
+    if args.c_in == 1:
+        transforms = T.Compose([
         T.Resize(args.resize) if args.resize else T.Lambda(lambda x: x),
         T.CenterCrop(320 if not args.resize else args.resize),
         lambda x: torch.from_numpy(np.array(x, copy=True)).float().div(255).unsqueeze(0),  # tensor in [0,1]
         T.Normalize(mean=[0.5330], std=[0.0349]),  # whiten with dataset mean and std
         lambda x: x.expand(3, -1, -1)])  # expand to 3 channels
+    else:
+        transforms = T.Compose([
+            T.Resize(args.resize) if args.resize else T.Lambda(lambda x: x),
+            T.CenterCrop(320 if not args.resize else args.resize),
+            lambda x: torch.from_numpy(np.array(x, copy=True)).float().div(255).unsqueeze(0)  # tensor in [0,1]
+        ])
 
     dataset = ChexpertSmall(args.data_path, mode, transforms, mini_data=args.mini_data, ext=args.ext)
     # TODO add torch.utils.data.random_split(dataset, lengths) for train dataset, and change valid ==> test
