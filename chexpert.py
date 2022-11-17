@@ -88,7 +88,7 @@ def fetch_dataloader(args, mode):
         transforms = T.Compose([
             T.Resize(args.resize) if args.resize else T.Lambda(lambda x: x),
             T.CenterCrop(320 if not args.resize else args.resize),
-            lambda x: torch.from_numpy(np.array(x, copy=True)).float().div(255).unsqueeze(0)  # tensor in [0,1]
+            # lambda x: torch.from_numpy(np.array(x, copy=True)).float().div(255).unsqueeze(0)  # tensor in [0,1]
         ])
 
     dataset = ChexpertSmall(args.data_path, mode, transforms, mini_data=args.mini_data, ext=args.ext)
