@@ -84,7 +84,7 @@ def fetch_dataloader(args, mode):
         T.Normalize(mean=[0.5330], std=[0.0349]),  # whiten with dataset mean and std
         lambda x: x.expand(3, -1, -1)])  # expand to 3 channels
 
-    dataset = ChexpertSmall(args.data_path, mode, transforms, mini_data=args.mini_data, ext=args.ext, c_in=args.c_in)
+    dataset = ChexpertSmall(args.data_path, mode, transforms, mini_data=args.mini_data, ext=args.ext)
     # TODO add torch.utils.data.random_split(dataset, lengths) for train dataset, and change valid ==> test
     return DataLoader(dataset, args.batch_size, shuffle=(mode == 'train'), pin_memory=(args.device.type == 'cuda'),
                       num_workers=0 if mode == 'valid' else 16)  # since evaluating the valid_dataloader is called inside the  if mode == 'valid' else 16

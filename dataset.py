@@ -24,13 +24,12 @@ class ChexpertSmall(Dataset):
     # select only the competition labels
     attr_names = ['Atelectasis', 'Cardiomegaly', 'Consolidation', 'Edema', 'Pleural Effusion']
 
-    def __init__(self, root, mode='train', transform=None, data_filter=None, mini_data=None, ext='jpg', c_in=1):
+    def __init__(self, root, mode='train', transform=None, data_filter=None, mini_data=None, ext='jpg'):
         self.ext = ext
         self.root = os.path.expanduser(root)
         self.transform = transform
         assert mode in ['train', 'valid', 'test', 'vis']
         self.mode = mode
-        self.c_in = c_in
 
         # if mode is test; root is path to csv file (in test mode), construct dataset from this csv;
         # if mode is train/valid; root is path to data folder with `train`/`valid` csv file to construct dataset.
@@ -79,14 +78,14 @@ class ChexpertSmall(Dataset):
             img = Image.open(os.path.join(self.root, img_path))
             if self.transform is not None:
                 img = self.transform(img)
-            if self.c_in != 1:
-                # tensor = np.moveaxis(img, 2, 0)  # changing tensor shape to be channel first
-                img = img.permute(2, 0, 1).float()
-                # img = torch.from_numpy(tensor).float()
+            # if self.c_in != 1:
+            #     # tensor = np.moveaxis(img, 2, 0)  # changing tensor shape to be channel first
+            #     img = img.permute(2, 0, 1).float()
+            #     # img = torch.from_numpy(tensor).float()
 
         elif self.ext == 'npy':
             tensor = np.load(os.path.join(self.root, img_path))
-            tensor = np.moveaxis(tensor, 2, 0)  # changing tensor shape to be channel first
+            # tensor = np.moveaxis(tensor, 2, 0)  # changing tensor shape to be channel first
             img = torch.from_numpy(tensor).float()
         else:
             raise RuntimeError('file extension not supported, use jpg or npy')
