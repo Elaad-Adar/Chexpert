@@ -80,7 +80,8 @@ class ChexpertSmall(Dataset):
             if self.transform is not None:
                 img = self.transform(img)
             if self.c_in != 1:
-                tensor = np.moveaxis(img, 2, 0)  # changing tensor shape to be channel first
+                # tensor = np.moveaxis(img, 2, 0)  # changing tensor shape to be channel first
+                tensor = img.permute(2, 0, 1)
                 img = torch.from_numpy(tensor).float()
 
         elif self.ext == 'npy':
