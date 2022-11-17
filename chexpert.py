@@ -50,8 +50,8 @@ parser.add_argument('--model', default='densenet121',
 parser.add_argument('--mini_data', type=int, help='Truncate dataset to this number of examples.')
 parser.add_argument('--resize', type=int, help='Size of minimum edge to which to resize images.')
 parser.add_argument('--frac', type=int, help='fraction of the data to use (e.g. use 80% of total train)')
-parser.add_argument('--c_in', type=int, default=1,
-                    help='how many input channels (default 3)')
+parser.add_argument('--c_in', type=int, default=3,
+                    help='hpw many input channels (default 3)')
 parser.add_argument('--ext', default='jpg',
                     help='What data type extension to use [jpg, npy]')
 # training params
@@ -77,19 +77,12 @@ parser.add_argument('--eval_interval', type=int, default=300,
 def fetch_dataloader(args, mode):
     assert mode in ['train', 'valid', 'vis']
 
-    if args.c_in == 1:
-        transforms = T.Compose([
+    transforms = T.Compose([
         T.Resize(args.resize) if args.resize else T.Lambda(lambda x: x),
         T.CenterCrop(320 if not args.resize else args.resize),
         lambda x: torch.from_numpy(np.array(x, copy=True)).float().div(255).unsqueeze(0),  # tensor in [0,1]
         T.Normalize(mean=[0.5330], std=[0.0349]),  # whiten with dataset mean and std
         lambda x: x.expand(3, -1, -1)])  # expand to 3 channels
-    else:
-        transforms = T.Compose([
-            T.Resize(args.resize) if args.resize else T.Lambda(lambda x: x),
-            T.CenterCrop(320 if not args.resize else args.resize),
-            lambda x: torch.from_numpy(np.array(x, copy=True)) #.float().div(255).unsqueeze(0)  # tensor in [0,1]
-        ])
 
     dataset = ChexpertSmall(args.data_path, mode, transforms, mini_data=args.mini_data, ext=args.ext, c_in=args.c_in)
     # TODO add torch.utils.data.random_split(dataset, lengths) for train dataset, and change valid ==> test
