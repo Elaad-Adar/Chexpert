@@ -1,17 +1,21 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torchvision
 import torchvision.transforms as T
 from torch.utils.data import DataLoader, TensorDataset
 
 import numpy as np
 import matplotlib
 
+from utils import AverageMeter, ProgressMeter, writer_add_scalars, accuracy
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from sklearn.metrics import roc_curve, auc, precision_recall_curve
 from tqdm import tqdm
-from tensorboardX import SummaryWriter
+# from tensorboardX import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 
 import os
 import pprint
@@ -25,6 +29,8 @@ from dataset import ChexpertSmall, extract_patient_ids
 from torchvision.models import densenet121, resnet152, DenseNet121_Weights, ResNet152_Weights
 from models.efficientnet import construct_model
 from models.attn_aug_conv import DenseNet, ResNet, Bottleneck
+
+
 
 parser = argparse.ArgumentParser()
 # action
@@ -74,6 +80,15 @@ parser.add_argument('--eval_interval', type=int, default=300,
 # Data IO
 # --------------------
 
+
+# SEED = 123
+# BATCH_SIZE = 32
+# lr = 0.1
+# epoch_decay = 2e-3
+# weight_decay = 1e-5
+# margin = 1.0
+# total_epochs = 2
+
 def fetch_dataloader(args, mode):
     assert mode in ['train', 'valid', 'vis']
 
@@ -85,7 +100,6 @@ def fetch_dataloader(args, mode):
         lambda x: x.expand(3, -1, -1)])  # expand to 3 channels
 
     dataset = ChexpertSmall(args.data_path, mode, transforms, mini_data=args.mini_data, ext=args.ext)
-    # TODO add torch.utils.data.random_split(dataset, lengths) for train dataset, and change valid ==> test
     return DataLoader(dataset, args.batch_size, shuffle=(mode == 'train'), pin_memory=(args.device.type == 'cuda'),
                       num_workers=0 if mode == 'valid' else 16)  # since evaluating the valid_dataloader is called inside the  if mode == 'valid' else 16
     # train_dataloader loop, 0 workers for valid_dataloader avoids
@@ -150,8 +164,8 @@ def compute_metrics(outputs, targets, losses):
         fpr[i], tpr[i], _ = roc_curve(targets[:, i], outputs[:, i])
         aucs[i] = auc(fpr[i], tpr[i])
         precision[i], recall[i], _ = precision_recall_curve(targets[:, i], outputs[:, i])
-        fpr[i], tpr[i], precision[i], recall[i] = fpr[i].tolist(), tpr[i].tolist(), precision[i].tolist(), recall[
-            i].tolist()
+        fpr[i], tpr[i], precision[i], recall[i] = fpr[i].tolist(), tpr[i].tolist(), precision[i].tolist(), \
+                                                  recall[i].tolist()
     mean_auc = sum(aucs.values()) / len(aucs)
 
     metrics = {
@@ -172,29 +186,66 @@ def compute_metrics(outputs, targets, losses):
 # --------------------
 
 def train_epoch(model, train_dataloader, valid_dataloader, loss_fn, optimizer, scheduler, writer, epoch, args):
-    model.train()
+    # batch_time = AverageMeter('Time', ':6.3f')
+    # data_time = AverageMeter('Data', ':6.3f')
+    # losses = AverageMeter('Loss', ':.4e')
+    # top1 = AverageMeter('Acc@1', ':6.2f')
+    # top3 = AverageMeter('Acc@3', ':6.2f')
+    # progress = ProgressMeter(
+    #     len(train_dataloader),
+    #     [batch_time, data_time, losses, top1, top3],
+    #     prefix="Epoch: [{}]".format(epoch))
 
+
+    model.train()
+    # images, _, _ = next(iter(train_dataloader))
+    # # grid = torchvision.utils.make_grid(images)
+    # # writer.add_image("images", grid)
+    # writer.add_graph(model, images)
+    # end = time.time()
     with tqdm(total=len(train_dataloader),
               desc=f'Step at start {args.step}; Training epoch {epoch + 1}/{args.n_epochs}') as pbar:
         for x, target, idxs in train_dataloader:
             args.step += 1
-
+            # data_time.update(time.time() - end)
             out = model(x.to(args.device))
             loss = loss_fn(out, target.to(args.device)).sum(1).mean(0)
 
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            if scheduler and args.step >= args.lr_warmup_steps: scheduler.step()
+            # if scheduler and args.step >= args.lr_warmup_steps: scheduler.step()
 
-            pbar.set_postfix(loss='{:.4f}'.format(loss.item()))
-            pbar.update()
-
+            # pbar.set_postfix()
+            # pbar.update()
+            # measure accuracy and record loss
+            # acc1, acc3 = accuracy(out, target, topk=(1, 3))
+            # losses.update(loss.item(), x.size(0))
+            # top1.update(acc1[0], x.size(0))
+            # top3.update(acc3[0], x.size(0))
+            #
+            # # measure elapsed time
+            # batch_time.update(time.time() - end)
+            # end = time.time()
             # record
             if args.step % args.log_interval == 0:
                 writer.add_scalar('train_loss', loss.item(), args.step)
-                writer.add_scalar('lr', optimizer.param_groups[0]['lr'], args.step)
+                # progress.display(args.step)
+                # writer_add_scalars(writer, 'train', {
+                #     "top1_acc": top1.avg,
+                #     "top3_acc": top3.avg,
+                #     "loss": losses.avg,
+                #     "batch_time": batch_time.avg
+                # }, epoch)
+                # writer.add_scalar('lr', optimizer.param_groups[0]['lr'], args.step)
 
+
+            pbar.set_postfix(
+                loss='{:.4f}'.format(loss.item()),
+                # Acc1='{top1.avg:.3f}'.format(top1=top1),
+                # Acc3='{top3.avg:.3f}'.format(top3=top3)
+                )
+            pbar.update()
             # evaluate and save on eval_interval
             if args.step % args.eval_interval == 0:
                 with torch.no_grad():
@@ -205,7 +256,6 @@ def train_epoch(model, train_dataloader, valid_dataloader, loss_fn, optimizer, s
                     writer.add_scalar('eval_loss', np.sum(list(eval_metrics['loss'].values())), args.step)
                     for k, v in eval_metrics['aucs'].items():
                         writer.add_scalar('eval_auc_class_{}'.format(k), v, args.step)
-
                     # save model
                     save_checkpoint(checkpoint={'global_step': args.step,
                                                 'eval_loss': np.sum(list(eval_metrics['loss'].values())),
@@ -264,7 +314,6 @@ def evaluate_ensemble(model, dataloader, loss_fn, args):
 
 def train_and_evaluate(model, train_dataloader, valid_dataloader, loss_fn, optimizer, scheduler, writer, args):
     for epoch in range(args.n_epochs):
-        # train
         train_epoch(model, train_dataloader, valid_dataloader, loss_fn, optimizer, scheduler, writer, epoch, args)
 
         # evaluate
@@ -401,45 +450,6 @@ def visualize_one(model, img, mask, label, patient_id, prob, attr_names, axs):
     for ax in axs: ax.axis('off')
 
 
-def vis_attn(x, patient_ids, idxs, attn_layers, args, batch_element=0):
-    H, W = x.shape[2:]
-    nh = attn_layers['forward'].nh
-
-    # select which pixels to visualize -- e.g. select virtices of a center square of side 1/3 of the image dims
-    pix_to_vis = lambda h, w: [(h // 3, w // 3), (h // 3, int(2 * w / 3)), (int(2 * h / 3), w // 3),
-                               (int(2 * h / 3), int(2 * w / 3))]
-    window = 30  # take mean attn around the pix_to_vis in a window of size ws
-
-    for j, l in enumerate(attn_layers):
-        # visualize attention maps (rows for each head; columns for each pixel)
-        fig, axs = plt.subplots(nh + 1, 4, figsize=(3, 3 / 4 * (1 + nh)), frameon=False)
-        fig.suptitle(patient_ids[batch_element], fontsize=8)
-        # display target image; highlight pixel
-        for ax, (ph, pw) in zip(axs[0], pix_to_vis(H, W)):
-            image = x.clone().detach().mul_(0.0349).add_(0.5330)  # renormalize
-            image[:, :, ph - window:ph + window, pw - window:pw + window] = torch.tensor([1., 215 / 255, 0]).view(1, 3,
-                                                                                                                  1,
-                                                                                                                  1)  # add yellow pixel on the pix_to_vis for visualization
-            ax.imshow(image[batch_element].permute(1, 2, 0).numpy())
-            ax.axis('off')
-        # display attention maps
-        # get attention weights tensor for the batch element
-        attn = l.weights.data[batch_element]
-        # reshape attn tensor and select the pixels to visualize
-        h = w = int(np.sqrt(attn.shape[-1]))
-        ws = max(1, int(window * h / H))  # scale window to feature map size
-        attn = attn.reshape(nh, h, w, h, w)
-        for i, (ph, pw) in enumerate(pix_to_vis(h, w)):
-            for h in range(nh):
-                axs[h + 1, i].imshow(attn[h, ph - ws:ph + ws, pw - ws:pw + ws, :, :].mean([0, 1]).cpu().numpy())
-                axs[h + 1, i].axis('off')
-
-        filename = 'attn_image_idx_{}_{}_layer_{}.png'.format(idxs[batch_element], batch_element, j)
-        fig.subplots_adjust(0, 0, 1, 0.95, 0.05, 0.05)
-        plt.savefig(os.path.join(args.output_dir, 'vis', filename))
-        plt.close()
-
-
 def plot_roc(metrics, args, filename, labels=ChexpertSmall.attr_names):
     fig, axs = plt.subplots(2, len(labels), figsize=(24, 12))
 
@@ -490,7 +500,9 @@ if __name__ == '__main__':
         args.output_dir: args.output_dir = os.path.join('results', time.strftime('%Y-%m-%d_%H-%M', time.gmtime()))
 
     # make new folders if they don't exist
-    writer = SummaryWriter(logdir=args.output_dir)  # creates output_dir
+    # writer = SummaryWriter(logdir=args.output_dir)
+    writer = SummaryWriter()
+    # creates output_dir
     if not os.path.exists(os.path.join(args.output_dir, 'vis')):
         os.makedirs(os.path.join(args.output_dir, 'vis'))
     if not os.path.exists(os.path.join(args.output_dir, 'plots')):
@@ -505,6 +517,7 @@ if __name__ == '__main__':
         json.dump(args.__dict__, f, indent=4)
     writer.add_text('config', str(args.__dict__))
 
+
     args.device = torch.device(
         'cuda:{}'.format(args.cuda) if args.cuda is not None and torch.cuda.is_available() else 'cpu')
     print(f"using {args.device} as device")
@@ -512,6 +525,8 @@ if __name__ == '__main__':
     if args.seed:
         torch.manual_seed(args.seed)
         np.random.seed(args.seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
 
     # load model
     n_classes = len(ChexpertSmall.attr_names)
@@ -519,9 +534,9 @@ if __name__ == '__main__':
         if args.pretrained:
             model = densenet121(weights=DenseNet121_Weights.IMAGENET1K_V1).to(args.device)
         else:
-            # model = densenet121(weights=None).to(args.device)
-            model = DenseNet(32, (6, 12, 24, 16), 64, num_classes=n_classes, c_in=args.c_in).to(
-                args.device)
+            model = densenet121(weights=None).to(args.device)
+            # model = DenseNet(32, (6, 12, 24, 16), 64, num_classes=n_classes, c_in=args.c_in).to(
+            #     args.device)
         # 1. replace output layer with chexpert number of classes (pretrained loads ImageNet n_classes)
         model.classifier = nn.Linear(model.classifier.in_features, out_features=n_classes).to(args.device)
         # 2. init output layer with default torchvision init
@@ -530,17 +545,8 @@ if __name__ == '__main__':
         grad_cam_hooks = {'forward': model.features.norm5, 'backward': model.classifier}
         # 4. init optimizer and scheduler
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+
         scheduler = None
-    #        optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, nesterov=True)
-    #        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [40000, 60000])
-    # elif args.model == 'aadensenet121':
-    #     model = DenseNet(32, (6, 12, 24, 16), 64, num_classes=n_classes,
-    #                      attn_params={'k': 0.2, 'v': 0.1, 'nh': 8, 'relative': True, 'input_dims': (320, 320)}).to(
-    #         args.device)
-    #     grad_cam_hooks = {'forward': model.features, 'backward': model.classifier}
-    #     attn_hooks = [model.features.transition1.conv, model.features.transition2.conv, model.features.transition3.conv]
-    #     optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, nesterov=True)
-    #     scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [40000, 60000])
     elif args.model == 'resnet152':
         if args.pretrained:
             model = resnet152(weights=ResNet152_Weights.DEFAULT).to(args.device)
@@ -550,42 +556,27 @@ if __name__ == '__main__':
         grad_cam_hooks = {'forward': model.layer4, 'backward': model.fc}
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         scheduler = None
-    elif args.model == 'aaresnet152':  # resnet50 layers [3,4,6,3]; resnet101 layers [3,4,23,3]; resnet 152 layers [3,8,36,3]
-        model = ResNet(Bottleneck, [3, 8, 36, 3], num_classes=n_classes,
-                       attn_params={'k': 0.2, 'v': 0.1, 'nh': 8, 'relative': True, 'input_dims': (320, 320)}).to(
-            args.device)
-        grad_cam_hooks = {'forward': model.layer4, 'backward': model.fc}
-        attn_hooks = [model.layer2[i].conv2 for i in range(len(model.layer2))] + \
-                     [model.layer3[i].conv2 for i in range(len(model.layer3))] + \
-                     [model.layer4[i].conv2 for i in range(len(model.layer4))]
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-        scheduler = None
-    elif 'efficientnet' in args.model:
-        model = construct_model(args.model, n_classes=n_classes).to(args.device)
-        grad_cam_hooks = {'forward': model.head[1], 'backward': model.head[-1]}
-        optimizer = torch.optim.RMSprop(model.parameters(), lr=args.lr, momentum=0.9, eps=0.001)
-        scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, args.lr_decay_factor)
     else:
         raise RuntimeError('Model architecture not supported.')
 
-    if args.restore and os.path.isfile(
-            args.restore):  # restore from single file, else ensemble is handled by evaluate_ensemble
-        print('Restoring model weights from {}'.format(args.restore))
-        model_checkpoint = torch.load(args.restore, map_location=args.device)
-        model.load_state_dict(model_checkpoint['state_dict'])
-        args.step = model_checkpoint['global_step']
-        del model_checkpoint
-        # if training, load optimizer and scheduler too
-        if args.train:
-            print('Restoring optimizer.')
-            optim_checkpoint_path = os.path.join(os.path.dirname(args.restore),
-                                                 'optim_' + os.path.basename(args.restore))
-            optimizer.load_state_dict(torch.load(optim_checkpoint_path, map_location=args.device))
-            if scheduler:
-                print('Restoring scheduler.')
-                sched_checkpoint_path = os.path.join(os.path.dirname(args.restore),
-                                                     'sched_' + os.path.basename(args.restore))
-                scheduler.load_state_dict(torch.load(sched_checkpoint_path, map_location=args.device))
+    # if args.restore and os.path.isfile(
+    #         args.restore):  # restore from single file, else ensemble is handled by evaluate_ensemble
+    #     print('Restoring model weights from {}'.format(args.restore))
+    #     model_checkpoint = torch.load(args.restore, map_location=args.device)
+    #     model.load_state_dict(model_checkpoint['state_dict'])
+    #     args.step = model_checkpoint['global_step']
+    #     del model_checkpoint
+    #     # if training, load optimizer and scheduler too
+    #     if args.train:
+    #         print('Restoring optimizer.')
+    #         optim_checkpoint_path = os.path.join(os.path.dirname(args.restore),
+    #                                              'optim_' + os.path.basename(args.restore))
+    #         optimizer.load_state_dict(torch.load(optim_checkpoint_path, map_location=args.device))
+    #         if scheduler:
+    #             print('Restoring scheduler.')
+    #             sched_checkpoint_path = os.path.join(os.path.dirname(args.restore),
+    #                                                  'sched_' + os.path.basename(args.restore))
+    #             scheduler.load_state_dict(torch.load(sched_checkpoint_path, map_location=args.device))
 
     # load data
     if args.restore:
@@ -627,15 +618,6 @@ if __name__ == '__main__':
 
     if args.visualize:
         visualize(model, vis_dataloader, grad_cam_hooks, args)
-        # if grad_cam_hooks is not None:
-        #     print(f'grad_cam_hooks.items - {grad_cam_hooks.items()}')
-        #     print(f'grad_cam_hooks.keys - {grad_cam_hooks.keys()}')
-        #     print(f'grad_cam_hooks.values - {grad_cam_hooks.values()}')
-        #     for x, _, idxs in vis_dataloader:
-        #         model(x.to(args.device))
-        #         patient_ids = extract_patient_ids(vis_dataloader.dataset, idxs)
-        #         # visualize stored attention weights for each image
-        #         for i in range(len(x)): vis_attn(x, patient_ids, idxs, grad_cam_hooks, args, i)
 
     if args.plot_roc:
         # load results files from output_dir

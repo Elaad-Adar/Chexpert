@@ -103,26 +103,6 @@ class ChexpertSmall(Dataset):
     def __len__(self):
         return len(self.data)
 
-    # def _maybe_download_and_extract(self):
-    #     fpath = os.path.join(self.root, os.path.basename(self.url))
-    #     # if data dir does not exist, download file to root and unzip into dir_name
-    #     if not os.path.exists(os.path.join(self.root, self.dir_name)):
-    #         # check if zip file already downloaded
-    #         if not os.path.exists(os.path.join(self.root, os.path.basename(self.url))):
-    #             print('Downloading ' + self.url + ' to ' + fpath)
-    #             def _progress(count, block_size, total_size):
-    #                 sys.stdout.write('\r>> Downloading %s %.1f%%' % (fpath,
-    #                     float(count * block_size) / float(total_size) * 100.0))
-    #                 sys.stdout.flush()
-    #             request.urlretrieve(self.url, fpath, _progress)
-    #             print()
-    #         print('Extracting ' + fpath)
-    #         with zipfile.ZipFile(fpath, 'r') as z:
-    #             z.extractall(self.root)
-    #             if os.path.exists(os.path.join(self.root, self.dir_name, '__MACOSX')):
-    #                 os.rmdir(os.path.join(self.root, self.dir_name, '__MACOSX'))
-    #         os.unlink(fpath)
-    #         print('Dataset extracted.')
 
     def _maybe_process(self, data_filter):
         # Dataset labels are: blank for unmentioned, 0 for negative, -1 for uncertain, and 1 for positive.
@@ -172,18 +152,6 @@ def extract_patient_ids(dataset, idxs):
     return dataset.data['Path'].loc[idxs].str.rsplit('/', expand=True, n=1)[0].values
 
 
-# def compute_mean_and_std(dataset):
-#     m = 0
-#     s = 0
-#     k = 1
-#     for img, _, _ in tqdm(dataset):
-#         x = img.mean().item()
-#         new_m = m + (x - m)/k
-#         s += (x - m)*(x - new_m)
-#         m = new_m
-#         k += 1
-#     print('Number of datapoints: ', k)
-#     return m, math.sqrt(s/(k-1))
 
 
 if __name__ == '__main__':
