@@ -8,13 +8,14 @@ from torch.utils.data import DataLoader, TensorDataset
 import numpy as np
 import matplotlib
 
+import utils
+from Wavelets import wpt_transform
 from utils import AverageMeter, ProgressMeter, writer_add_scalars, accuracy
 
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from sklearn.metrics import roc_curve, auc, precision_recall_curve
 from tqdm import tqdm
-# from tensorboardX import SummaryWriter
 from torch.utils.tensorboard import SummaryWriter
 
 import os
@@ -29,8 +30,6 @@ from dataset import ChexpertSmall, extract_patient_ids
 from torchvision.models import densenet121, resnet152, DenseNet121_Weights, ResNet152_Weights
 from models.efficientnet import construct_model
 from models.attn_aug_conv import DenseNet, ResNet, Bottleneck
-
-
 
 parser = argparse.ArgumentParser()
 # action
@@ -56,10 +55,8 @@ parser.add_argument('--model', default='densenet121',
 parser.add_argument('--mini_data', type=int, help='Truncate dataset to this number of examples.')
 parser.add_argument('--resize', type=int, help='Size of minimum edge to which to resize images.')
 parser.add_argument('--frac', type=int, help='fraction of the data to use (e.g. use 80% of total train)')
-parser.add_argument('--c_in', type=int, default=3,
-                    help='hpw many input channels (default 3)')
-parser.add_argument('--ext', default='jpg',
-                    help='What data type extension to use [jpg, npy]')
+parser.add_argument('--ext', default='img',
+                    help='What data type extension to use [img, qwp]')
 # training params
 parser.add_argument('--pretrained', action='store_true',
                     help='Use ImageNet pretrained model and normalize data mean and std.')
@@ -74,6 +71,7 @@ parser.add_argument('--step', type=int, default=0, help='Current step of trainin
 parser.add_argument('--log_interval', type=int, default=50, help='Interval of num batches to show loss statistics.')
 parser.add_argument('--eval_interval', type=int, default=300,
                     help='Interval of num epochs to evaluate, checkpoint, and save samples.')
+parser.add_argument('--num_workers', type=int, default=0, help='define number of workers to use for training')
 
 
 # --------------------
@@ -92,17 +90,27 @@ parser.add_argument('--eval_interval', type=int, default=300,
 def fetch_dataloader(args, mode):
     assert mode in ['train', 'valid', 'vis']
 
-    transforms = T.Compose([
+    transformations = [
         T.Resize(args.resize) if args.resize else T.Lambda(lambda x: x),
         T.CenterCrop(320 if not args.resize else args.resize),
+        T.RandomHorizontalFlip(),  # flip horizontally with 0.5 probability of photo to flip
         lambda x: torch.from_numpy(np.array(x, copy=True)).float().div(255).unsqueeze(0),  # tensor in [0,1]
         T.Normalize(mean=[0.5330], std=[0.0349]),  # whiten with dataset mean and std
-        lambda x: x.expand(3, -1, -1)])  # expand to 3 channels
+        ]
 
+    if args.ext == "img":
+        transformations.append(lambda x: x.expand(3, -1, -1))  # expand to 3 channels
+    elif args.ext == 'qwp':
+        transformations.append([
+            T.Resize(utils.closest_power(lambda x: x.shape[0])),  # resize to power of 2 dimension  (H, W) before qWPT
+            wpt_transform.qWPT(DeTr=3, nfreq=10)  # preform qWPT
+        ])
+
+    transforms = T.Compose(transformations)
     dataset = ChexpertSmall(args.data_path, mode, transforms, mini_data=args.mini_data, ext=args.ext)
     return DataLoader(dataset, args.batch_size, shuffle=(mode == 'train'), pin_memory=(args.device.type == 'cuda'),
-                      num_workers=0 if mode == 'valid' else 16)  # since evaluating the valid_dataloader is called inside the  if mode == 'valid' else 16
-    # train_dataloader loop, 0 workers for valid_dataloader avoids
+                      num_workers=0 if mode == 'valid' else args.num_workers)  # since evaluating the valid_dataloader
+    # is called inside the train_dataloader loop, 0 workers for valid_dataloader avoids
     # forking (cf torch dataloader docs); else memory sharing gets clunky
 
 
@@ -196,12 +204,11 @@ def train_epoch(model, train_dataloader, valid_dataloader, loss_fn, optimizer, s
     #     [batch_time, data_time, losses, top1, top3],
     #     prefix="Epoch: [{}]".format(epoch))
 
-
     model.train()
-    # images, _, _ = next(iter(train_dataloader))
+    images, _, _ = next(iter(train_dataloader))
     # # grid = torchvision.utils.make_grid(images)
     # # writer.add_image("images", grid)
-    # writer.add_graph(model, images)
+    writer.add_graph(model, images)
     # end = time.time()
     with tqdm(total=len(train_dataloader),
               desc=f'Step at start {args.step}; Training epoch {epoch + 1}/{args.n_epochs}') as pbar:
@@ -239,12 +246,11 @@ def train_epoch(model, train_dataloader, valid_dataloader, loss_fn, optimizer, s
                 # }, epoch)
                 # writer.add_scalar('lr', optimizer.param_groups[0]['lr'], args.step)
 
-
             pbar.set_postfix(
                 loss='{:.4f}'.format(loss.item()),
                 # Acc1='{top1.avg:.3f}'.format(top1=top1),
                 # Acc3='{top3.avg:.3f}'.format(top3=top3)
-                )
+            )
             pbar.update()
             # evaluate and save on eval_interval
             if args.step % args.eval_interval == 0:
@@ -517,7 +523,6 @@ if __name__ == '__main__':
         json.dump(args.__dict__, f, indent=4)
     writer.add_text('config', str(args.__dict__))
 
-
     args.device = torch.device(
         'cuda:{}'.format(args.cuda) if args.cuda is not None and torch.cuda.is_available() else 'cpu')
     print(f"using {args.device} as device")
@@ -535,8 +540,6 @@ if __name__ == '__main__':
             model = densenet121(weights=DenseNet121_Weights.IMAGENET1K_V1).to(args.device)
         else:
             model = densenet121(weights=None).to(args.device)
-            # model = DenseNet(32, (6, 12, 24, 16), 64, num_classes=n_classes, c_in=args.c_in).to(
-            #     args.device)
         # 1. replace output layer with chexpert number of classes (pretrained loads ImageNet n_classes)
         model.classifier = nn.Linear(model.classifier.in_features, out_features=n_classes).to(args.device)
         # 2. init output layer with default torchvision init
@@ -549,7 +552,7 @@ if __name__ == '__main__':
         scheduler = None
     elif args.model == 'resnet152':
         if args.pretrained:
-            model = resnet152(weights=ResNet152_Weights.DEFAULT).to(args.device)
+            model = resnet152(weights=ResNet152_Weights.IMAGENET1K_V2).to(args.device)
         else:
             model = resnet152(weights=None).to(args.device)
         model.fc = nn.Linear(model.fc.in_features, out_features=n_classes).to(args.device)

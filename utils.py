@@ -1,7 +1,13 @@
 # ref: https://github.com/pytorch/examples/blob/792d336019a28a679e29cf174e10cee80ead8722/imagenet/main.py#L363
 
 import torch
+from math import log, ceil, floor
 
+def closest_power(x):
+    possible_results = floor(log(x, 2)), ceil(log(x, 2))
+    p = min(possible_results, key=lambda z: abs(x - 2 ** z))
+
+    return 2 ** p
 
 def writer_add_scalars(writer, prefix, kvs, epoch):
     for k, v in kvs.items():

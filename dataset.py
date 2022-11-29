@@ -74,21 +74,10 @@ class ChexpertSmall(Dataset):
     def __getitem__(self, idx):
         # 1. select and load image
         img_path = self.data.iloc[idx, 0]  # 'Path' column is 0
-        if self.ext == 'jpg':
-            img = Image.open(os.path.join(self.root, img_path))
-            if self.transform is not None:
-                img = self.transform(img)
-            # if self.c_in != 1:
-            #     # tensor = np.moveaxis(img, 2, 0)  # changing tensor shape to be channel first
-            #     img = img.permute(2, 0, 1).float()
-            #     # img = torch.from_numpy(tensor).float()
+        img = Image.open(os.path.join(self.root, img_path))
+        if self.transform is not None:
+            img = self.transform(img)
 
-        elif self.ext == 'npy':
-            tensor = np.load(os.path.join(self.root, img_path))
-            # tensor = np.moveaxis(tensor, 2, 0)  # changing tensor shape to be channel first
-            img = torch.from_numpy(tensor).float()
-        else:
-            raise RuntimeError('file extension not supported, use jpg or npy')
         # 2. select attributes as targets
         attr = self.data.iloc[idx, self.attr_idxs].values.astype(np.float32)
         attr = torch.from_numpy(attr)
