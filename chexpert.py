@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader, TensorDataset
 import numpy as np
 import matplotlib
 
+import models.my_models
 import utils
 from Wavelets import wpt_transform
 from utils import AverageMeter, ProgressMeter, writer_add_scalars, accuracy
@@ -50,7 +51,7 @@ parser.add_argument('--restore', type=str,
                     help='Path to a single model checkpoint to restore or folder of checkpoints to ensemble.')
 # model architecture
 parser.add_argument('--model', default='densenet121',
-                    help='What model architecture to use. (densenet121, resnet152, efficientnet-b[0-7])')
+                    help='What model architecture to use. (densenet121, resnet152, wpt_resnet152)')
 # data params
 parser.add_argument('--mini_data', type=int, help='Truncate dataset to this number of examples.')
 parser.add_argument('--resize', type=int, help='Size of minimum edge to which to resize images.')
@@ -58,6 +59,7 @@ parser.add_argument('--frac', type=int, help='fraction of the data to use (e.g. 
 parser.add_argument('--ext', default='img',
                     help='What data type extension to use [img, qwp]')
 # training params
+parser.add_argument('--input_ch', type=int, default=64, help='number of input channels to network.')
 parser.add_argument('--pretrained', action='store_true',
                     help='Use ImageNet pretrained model and normalize data mean and std.')
 parser.add_argument('--batch_size', type=int, default=16, help='Dataloaders batch size.')
@@ -101,10 +103,8 @@ def fetch_dataloader(args, mode):
     if args.ext == "img":
         transformations.append(lambda x: x.expand(3, -1, -1))  # expand to 3 channels
     elif args.ext == 'qwp':
-        transformations.append([
-            T.Resize(utils.closest_power(lambda x: x.shape[0])),  # resize to power of 2 dimension  (H, W) before qWPT
-            wpt_transform.qWPT(DeTr=3, nfreq=10)  # preform qWPT
-        ])
+        transformations.append(T.Resize(256))  # resize to power of 2 dimension  (H, W) before qWPT
+        transformations.append(wpt_transform.qWPT(DeTr=3, expand=80))  # preform qWPT
 
     transforms = T.Compose(transformations)
     dataset = ChexpertSmall(args.data_path, mode, transforms, mini_data=args.mini_data, ext=args.ext)
@@ -557,6 +557,13 @@ if __name__ == '__main__':
         else:
             model = resnet152(weights=None).to(args.device)
         model.fc = nn.Linear(model.fc.in_features, out_features=n_classes).to(args.device)
+        grad_cam_hooks = {'forward': model.layer4, 'backward': model.fc}
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+        scheduler = None
+    elif args.model == 'wpt_resnet152':
+        model = models.my_models.wpt_resnet_152(args.input_ch).to(args.device)
+        model.fc = nn.Linear(model.fc.in_features, out_features=n_classes).to(args.device)
+        model = model.double()
         grad_cam_hooks = {'forward': model.layer4, 'backward': model.fc}
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         scheduler = None

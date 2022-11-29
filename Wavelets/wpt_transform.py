@@ -3,6 +3,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 from skimage.transform import resize
 
+from Wavelets.matmMP import matmMP
+from Wavelets.WP_an_2dMP import WP_an_2dMP
 import Wavelets.wpt_utils as wpt_utils
 
 
@@ -26,24 +28,23 @@ class qWPT(object):
         self.nfreq = nfreq
         self.norm = norm
         self.expand = expand
-        mat_p, self.mat_m = self.compute_wavelet_transform()
+        self.mat_p, self.mat_m = self.compute_wavelet_transform()
         self.diagonal = wpt_utils.get_diagonal(level=self.DeTr)
 
     def __call__(self, image):
         qwp_mat, _ = self.transform_image(image)
         # sort the matrix into stacked order
-        data = self.stack_sub_bands(qwp_mat, norm=self.norm, expand=self.expand)
+        data = self.stack_sub_bands(qwp_mat)
         if self.energy_sort:
             data = sort_by_energy(data)
         if self.nfreq is not None:
             data = data[:self.nfreq, :, :]
-
+        # if self.expand is not None:
+        #     data = wpt_utils.resize_image(data, self.expand, self.expand)
         return data
 
     def compute_wavelet_transform(self):
         # TODO add description here
-        from matmMP import matmMP
-
         matrm_p = matmMP(self.N, self.Par, self.DeTr, 3, self.dc)
         matrm_m = matmMP(self.N, self.Par, self.DeTr, 4, self.dc)
         if self.printout:
@@ -53,9 +54,9 @@ class qWPT(object):
 
     def transform_image(self, image, vis_channels=False):
         # TODO add description here
-        from WP_an_2dMP import WP_an_2dMP
-        image = wpt_utils.resize_image(image, self.N, self.N)
-        ptran, mtran = WP_an_2dMP(image, self.DeTr, self.mat_p, self.mat_p, self.mat_m)
+        image = np.array(image)
+        # image = wpt_utils.resize_image(image, self.N, self.N)
+        ptran, mtran = WP_an_2dMP(image[0], self.DeTr, self.mat_p, self.mat_p, self.mat_m)
 
         if self.printout:
             print("done transforming image")
@@ -81,8 +82,8 @@ class qWPT(object):
                 new_tensor[idx, :, :] = np.real(mat[i * split:i * split + split, j * split:j * split + split, div])
         image_array = (new_tensor[:, :, :]).astype(np.uint8)
 
-        if self.expand != None:
-            new_tensor2 = np.zeros((numOfChannels, self.expand, self.expand), dtype='float')
+        if self.expand is not None:
+            new_tensor2 = np.zeros((numOfChannels, self.expand, self.expand), dtype='double')
             for c in range(numOfChannels):
                 new_tensor2[c, :, :] = resize(image_array[c, :, :], (self.expand, self.expand), order=3)
             return new_tensor2

@@ -1,7 +1,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
 
-from havshB import havshB
+from Wavelets.havshB import havshB
 
 
 
@@ -22,7 +22,7 @@ def WP_an_2dMP(x, DeTr, MatrM_pv,MatrM_ph,MatrM_m):
 def dsp_wq_an_2d_sk(x, DeTr, Mat1, Mat2):
     # 2D discrete-spline wavelet packet analysis of the square array `x`
     # DeTr: depth of decomposition
-    Nv, Nh=x.shape
+    Nv, Nh = x.shape
     wqtran = np.zeros((Nv,Nh, DeTr), dtype='complex')
     k_lev = np.zeros((Nv,Nh), dtype='complex')
     z0, z1 = dsw_down_sk(x, Mat1[:4, :])

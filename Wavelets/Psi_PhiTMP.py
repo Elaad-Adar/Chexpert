@@ -188,7 +188,7 @@ def juviTSsk(Par,N):
     #
     #
     # if config['colab']:
-    BSU = np.loadtxt("BSU.txt")  # samples of the B-splines
+    BSU = np.loadtxt("Wavelets/BSU.txt")  # samples of the B-splines
 
     if Par == 0:
         Par = 1

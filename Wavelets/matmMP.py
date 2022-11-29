@@ -1,7 +1,7 @@
 import numpy as np
-from havshB import havshB
-from Psi_PhiMP import Psi_PhiMP
-from Psi_PhiTMP import Psi_PhiTMP
+from Wavelets.havshB import havshB
+from Wavelets.Psi_PhiMP import Psi_PhiMP
+from Wavelets.Psi_PhiTMP import Psi_PhiTMP
 
 
 def matmMP(N, Par, DeTr, pm, dc):

@@ -48,7 +48,7 @@ class ChexpertSmall(Dataset):
                 # truncate data to only a subset for debugging
                 self.data = self.data[:mini_data]
 
-            if mode=='vis':
+            if mode == 'vis':
                 # select a subset of the data to visualize:
                 #   3 examples from each condition category + no finding category + multiple conditions category
 

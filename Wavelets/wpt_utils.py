@@ -105,8 +105,10 @@ def get_diagonal(level, upper=False):
     return diag_idx
 
 def resize_image(image, width, height):
-    transforms = T.Compose([
-        T.Resize((width, height))])
-    x = np.asarray(transforms(image))
+    """
+    resize image
+    """
+    image = np.array(image)
+    image = resize(image, (1, width, height), order=3)
+    return image
 
-    return x
