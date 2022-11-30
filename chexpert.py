@@ -235,7 +235,7 @@ def train_epoch(model, train_dataloader, valid_dataloader, loss_fn, optimizer, s
             # end = time.time()
             # record
             if args.step % args.log_interval == 0:
-                writer.add_scalar('train_loss', loss.item(), args.step)
+                writer.add_scalar('loss/train_loss', loss.item(), args.step)
                 # progress.display(args.step)
                 # writer_add_scalars(writer, 'train', {
                 #     "top1_acc": top1.avg,
@@ -258,9 +258,9 @@ def train_epoch(model, train_dataloader, valid_dataloader, loss_fn, optimizer, s
 
                     eval_metrics = evaluate_single_model(model, valid_dataloader, loss_fn, args)
 
-                    writer.add_scalar('eval_loss', np.sum(list(eval_metrics['loss'].values())), args.step)
+                    writer.add_scalar('loss/eval_loss', np.sum(list(eval_metrics['loss'].values())), args.step)
                     for k, v in eval_metrics['aucs'].items():
-                        writer.add_scalar('eval_auc_class_{}'.format(k), v, args.step)
+                        writer.add_scalar('auc/eval_auc_class_{}'.format(k), v, args.step)
                     # save model
                     save_checkpoint(checkpoint={'global_step': args.step,
                                                 'eval_loss': np.sum(list(eval_metrics['loss'].values())),
@@ -328,9 +328,9 @@ def train_and_evaluate(model, train_dataloader, valid_dataloader, loss_fn, optim
         print('AUC:\n', pprint.pformat(eval_metrics['aucs']))
         print('Mean AUC:\n', pprint.pformat(eval_metrics['mean_auc']))
         print('Loss:\n', pprint.pformat(eval_metrics['loss']))
-        writer.add_scalar('eval_loss', np.sum(list(eval_metrics['loss'].values())), args.step)
+        writer.add_scalar('loss/eval_loss', np.sum(list(eval_metrics['loss'].values())), args.step)
         for k, v in eval_metrics['aucs'].items():
-            writer.add_scalar('eval_auc_class_{}'.format(k), v, args.step)
+            writer.add_scalar('auc/eval_auc_class_{}'.format(k), v, args.step)
 
         # save eval metrics
         save_json(eval_metrics, 'eval_results_step_{}'.format(args.step), args)
