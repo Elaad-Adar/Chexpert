@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 
 
@@ -189,7 +191,11 @@ def juviTSsk(Par,N):
     #
     # if config['colab']:
     # BSU = np.loadtxt("Wavelets/BSU.txt")
-    BSU = np.loadtxt("/content/chexpert/Wavelets/BSU.txt")  # samples of the B-splines
+    # BSU = np.loadtxt("/content/chexpert/Wavelets/BSU.txt")  # samples of the B-splines
+    script_dir = os.path.dirname(__file__)  # <-- absolute dir the script is in
+    rel_path = "BSU.txt"
+    abs_file_path = os.path.join(script_dir, rel_path)
+    BSU = np.loadtxt(abs_file_path)
 
     if Par == 0:
         Par = 1

@@ -1,7 +1,11 @@
+import random
+
 import PIL.Image
 import numpy as np
+import torch
 from matplotlib import pyplot as plt
 from skimage.transform import resize
+import torchvision.transforms as T
 
 from Wavelets.matmMP import matmMP
 from Wavelets.WP_an_2dMP import WP_an_2dMP
@@ -18,7 +22,8 @@ def sort_by_energy(data):
 
 class qWPT(object):
 
-    def __init__(self, DeTr=4, dc=2, Par=5, N=256, printout=False, energy_sort=False, nfreq=None, norm=False, expand=None):
+    def __init__(self, DeTr=4, dc=2, Par=5, N=256, printout=False,
+                 vis_channels=False, energy_sort=False, nfreq=None, norm=False, expand=None):
         self.DeTr = DeTr
         self.dc = dc
         self.Par = Par
@@ -30,8 +35,13 @@ class qWPT(object):
         self.expand = expand
         self.mat_p, self.mat_m = self.compute_wavelet_transform()
         self.diagonal = wpt_utils.get_diagonal(level=self.DeTr)
+        self.vis = vis_channels
 
     def __call__(self, image):
+        #check dimension
+        if image.ndim == 3:
+            image = image[0, :, :]
+            image = resize(image, (self.N, self.N), 3)
         qwp_mat, _ = self.transform_image(image)
         # sort the matrix into stacked order
         data = self.stack_sub_bands(qwp_mat)
@@ -52,15 +62,15 @@ class qWPT(object):
 
         return matrm_p, matrm_m
 
-    def transform_image(self, image, vis_channels=False):
+    def transform_image(self, image):
         # TODO add description here
-        image = np.array(image)
+        # image = np.array(image)
         # image = wpt_utils.resize_image(image, self.N, self.N)
-        ptran, mtran = WP_an_2dMP(image[0], self.DeTr, self.mat_p, self.mat_p, self.mat_m)
+        ptran, mtran = WP_an_2dMP(image, self.DeTr, self.mat_p, self.mat_p, self.mat_m)
 
         if self.printout:
             print("done transforming image")
-        if vis_channels:
+        if self.vis:
             self.show_channels(ptran)
 
         return ptran, mtran
@@ -89,10 +99,12 @@ class qWPT(object):
             return new_tensor2
         return image_array
 
-    def show_image(self, image):
-        x = wpt_utils.resize_image(image, self.N, self.N)
-        plt.imshow(x, cmap="gray")
-        plt.title('original image')
+    def show_image(self, image, title=None):
+        # x = wpt_utils.resize_image(image, self.N, self.N)
+        if len(image.shape) > 2:
+            image = image[0, :, :]
+        plt.imshow(image, cmap="gray")
+        plt.title(title)
         plt.show()
 
     def show_channels(self, tran):
@@ -114,8 +126,23 @@ class qWPT(object):
 
 
 if __name__ == "__main__":
-    ti = qWPT(DeTr=3, N=256)
+    ti = qWPT(DeTr=3, vis_channels=True)
     image2add = PIL.Image.open("view1_frontal.jpg")
-    # ti.show_image(image=image2add)
+    print(f'W={image2add.width}, H={image2add.height}')
+    plt.imshow(image2add, cmap="gray")
+    plt.title("original image")
+    plt.show()
+    transformations = [T.CenterCrop(320),
+                       lambda x: torch.from_numpy(np.array(x, copy=True)).float().div(255).unsqueeze(0),
+                       T.Normalize(mean=[0.5330], std=[0.0349]), qWPT(DeTr=3, expand=80, vis_channels=True)]
+    transforms = T.Compose(transformations)
+    x = np.asarray(transforms(image2add))
+    print(x.shape)
+    # ti.show_image(image=x, title="image after transformation")
+    for i in range(5):
+        id = random.randrange(0, 64)
+        plt.imshow(x[id, :, :], cmap="gray")
+        plt.title(f"sub band {id} after transformations")
+        plt.show()
     # ti.transform_image(image=image2add, vis_channels=True)
-    ti(image2add, energy_sort=True, nfreq=10)
+    # ti(image2add)

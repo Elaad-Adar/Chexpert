@@ -109,6 +109,6 @@ def resize_image(image, width, height):
     resize image
     """
     image = np.array(image)
-    image = resize(image, (1, width, height), order=3)
+    image = resize(image, (width, height), order=3)
     return image
 

@@ -56,8 +56,7 @@ parser.add_argument('--model', default='densenet121',
 parser.add_argument('--mini_data', type=int, help='Truncate dataset to this number of examples.')
 parser.add_argument('--resize', type=int, help='Size of minimum edge to which to resize images.')
 parser.add_argument('--frac', type=int, help='fraction of the data to use (e.g. use 80% of total train)')
-parser.add_argument('--ext', default='img',
-                    help='What data type extension to use [img, qwp]')
+parser.add_argument('--ext', default='img', help='What data type extension to use [img, qwp]')
 # training params
 parser.add_argument('--input_ch', type=int, default=64, help='number of input channels to network.')
 parser.add_argument('--pretrained', action='store_true',
@@ -93,9 +92,8 @@ def fetch_dataloader(args, mode):
     assert mode in ['train', 'valid', 'vis']
 
     transformations = [
-        T.Resize(args.resize) if args.resize else T.Lambda(lambda x: x),
-        T.CenterCrop(320 if not args.resize else args.resize),
-        T.RandomHorizontalFlip(),  # flip horizontally with 0.5 probability of photo to flip
+        # T.Resize(args.resize) if args.resize else T.Lambda(lambda x: x),
+        T.CenterCrop(320),  # if not args.resize else args.resize),
         lambda x: torch.from_numpy(np.array(x, copy=True)).float().div(255).unsqueeze(0),  # tensor in [0,1]
         T.Normalize(mean=[0.5330], std=[0.0349]),  # whiten with dataset mean and std
         ]
@@ -103,7 +101,7 @@ def fetch_dataloader(args, mode):
     if args.ext == "img":
         transformations.append(lambda x: x.expand(3, -1, -1))  # expand to 3 channels
     elif args.ext == 'qwp':
-        transformations.append(T.Resize(256))  # resize to power of 2 dimension  (H, W) before qWPT
+        # transformations.append(T.Resize(256))  # resize to power of 2 dimension  (H, W) before qWPT
         transformations.append(wpt_transform.qWPT(DeTr=3, expand=80))  # preform qWPT
 
     transforms = T.Compose(transformations)
@@ -570,24 +568,24 @@ if __name__ == '__main__':
     else:
         raise RuntimeError('Model architecture not supported.')
 
-    # if args.restore and os.path.isfile(
-    #         args.restore):  # restore from single file, else ensemble is handled by evaluate_ensemble
-    #     print('Restoring model weights from {}'.format(args.restore))
-    #     model_checkpoint = torch.load(args.restore, map_location=args.device)
-    #     model.load_state_dict(model_checkpoint['state_dict'])
-    #     args.step = model_checkpoint['global_step']
-    #     del model_checkpoint
-    #     # if training, load optimizer and scheduler too
-    #     if args.train:
-    #         print('Restoring optimizer.')
-    #         optim_checkpoint_path = os.path.join(os.path.dirname(args.restore),
-    #                                              'optim_' + os.path.basename(args.restore))
-    #         optimizer.load_state_dict(torch.load(optim_checkpoint_path, map_location=args.device))
-    #         if scheduler:
-    #             print('Restoring scheduler.')
-    #             sched_checkpoint_path = os.path.join(os.path.dirname(args.restore),
-    #                                                  'sched_' + os.path.basename(args.restore))
-    #             scheduler.load_state_dict(torch.load(sched_checkpoint_path, map_location=args.device))
+    if args.restore and os.path.isfile(
+            args.restore):  # restore from single file, else ensemble is handled by evaluate_ensemble
+        print('Restoring model weights from {}'.format(args.restore))
+        model_checkpoint = torch.load(args.restore, map_location=args.device)
+        model.load_state_dict(model_checkpoint['state_dict'])
+        args.step = model_checkpoint['global_step']
+        del model_checkpoint
+        # if training, load optimizer and scheduler too
+        if args.train:
+            print('Restoring optimizer.')
+            optim_checkpoint_path = os.path.join(os.path.dirname(args.restore),
+                                                 'optim_' + os.path.basename(args.restore))
+            optimizer.load_state_dict(torch.load(optim_checkpoint_path, map_location=args.device))
+            if scheduler:
+                print('Restoring scheduler.')
+                sched_checkpoint_path = os.path.join(os.path.dirname(args.restore),
+                                                     'sched_' + os.path.basename(args.restore))
+                scheduler.load_state_dict(torch.load(sched_checkpoint_path, map_location=args.device))
 
     # load data
     if args.restore:

@@ -90,7 +90,7 @@ class WPTResNet(models.ResNet):
 
         # x = self.maxpool(x) # without maxpool, then wptdownsample is needed in pre-processing
 
-        x = self.layer1(x).double()
+        x = self.layer1(x)
         x = self.layer2(x)
         x = self.layer3(x)
         x = self.layer4(x)
