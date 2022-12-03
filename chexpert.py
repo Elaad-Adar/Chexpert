@@ -79,21 +79,12 @@ parser.add_argument('--num_workers', type=int, default=0, help='define number of
 # Data IO
 # --------------------
 
-
-# SEED = 123
-# BATCH_SIZE = 32
-# lr = 0.1
-# epoch_decay = 2e-3
-# weight_decay = 1e-5
-# margin = 1.0
-# total_epochs = 2
-
 def fetch_dataloader(args, mode):
     assert mode in ['train', 'valid', 'vis']
 
     transformations = [
-        # T.Resize(args.resize) if args.resize else T.Lambda(lambda x: x),
-        T.CenterCrop(320),  # if not args.resize else args.resize),
+        T.Resize(args.resize) if args.resize else T.Lambda(lambda x: x),
+        T.CenterCrop(320 if not args.resize else args.resize),
         lambda x: torch.from_numpy(np.array(x, copy=True)).float().div(255).unsqueeze(0),  # tensor in [0,1]
         T.Normalize(mean=[0.5330], std=[0.0349]),  # whiten with dataset mean and std
         ]
@@ -192,22 +183,12 @@ def compute_metrics(outputs, targets, losses):
 # --------------------
 
 def train_epoch(model, train_dataloader, valid_dataloader, loss_fn, optimizer, scheduler, writer, epoch, args):
-    # batch_time = AverageMeter('Time', ':6.3f')
-    # data_time = AverageMeter('Data', ':6.3f')
-    # losses = AverageMeter('Loss', ':.4e')
-    # top1 = AverageMeter('Acc@1', ':6.2f')
-    # top3 = AverageMeter('Acc@3', ':6.2f')
-    # progress = ProgressMeter(
-    #     len(train_dataloader),
-    #     [batch_time, data_time, losses, top1, top3],
-    #     prefix="Epoch: [{}]".format(epoch))
-
     model.train()
-    # images, _, _ = next(iter(train_dataloader))
+    images, _, _ = next(iter(train_dataloader))
     # # grid = torchvision.utils.make_grid(images)
     # # grid = torchvision.utils.make_grid(images)
     # # writer.add_image("images", grid)
-    # writer.add_graph(model, images)
+    writer.add_graph(model, images)
     # end = time.time()
     with tqdm(total=len(train_dataloader),
               desc=f'Step at start {args.step}; Training epoch {epoch + 1}/{args.n_epochs}') as pbar:
@@ -222,33 +203,12 @@ def train_epoch(model, train_dataloader, valid_dataloader, loss_fn, optimizer, s
             optimizer.step()
             # if scheduler and args.step >= args.lr_warmup_steps: scheduler.step()
 
-            # pbar.set_postfix()
-            # pbar.update()
-            # measure accuracy and record loss
-            # acc1, acc3 = accuracy(out, target, topk=(1, 3))
-            # losses.update(loss.item(), x.size(0))
-            # top1.update(acc1[0], x.size(0))
-            # top3.update(acc3[0], x.size(0))
-            #
-            # # measure elapsed time
-            # batch_time.update(time.time() - end)
-            # end = time.time()
             # record
             if args.step % args.log_interval == 0:
                 writer.add_scalar('loss/train_loss', loss.item(), args.step)
-                # progress.display(args.step)
-                # writer_add_scalars(writer, 'train', {
-                #     "top1_acc": top1.avg,
-                #     "top3_acc": top3.avg,
-                #     "loss": losses.avg,
-                #     "batch_time": batch_time.avg
-                # }, epoch)
-                # writer.add_scalar('lr', optimizer.param_groups[0]['lr'], args.step)
 
             pbar.set_postfix(
-                loss='{:.4f}'.format(loss.item()),
-                # Acc1='{top1.avg:.3f}'.format(top1=top1),
-                # Acc3='{top3.avg:.3f}'.format(top3=top3)
+                loss='{:.4f}'.format(loss.item())
             )
             pbar.update()
             # evaluate and save on eval_interval
@@ -547,7 +507,28 @@ if __name__ == '__main__':
         grad_cam_hooks = {'forward': model.features.norm5, 'backward': model.classifier}
         # 4. init optimizer and scheduler
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-
+        scheduler = None
+    elif args.model == 'mydensenet121':
+        model = models.my_models.densenet121().to(args.device)
+        # 1. replace output layer with chexpert number of classes (pretrained loads ImageNet n_classes)
+        model.classifier = nn.Linear(model.classifier.in_features, out_features=n_classes).to(args.device)
+        # 2. init output layer with default torchvision init
+        nn.init.constant_(model.classifier.bias, 0)
+        # 3. store locations of forward and backward hooks for grad-cam
+        grad_cam_hooks = {'forward': model.features.norm5, 'backward': model.classifier}
+        # 4. init optimizer and scheduler
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+        scheduler = None
+    elif args.model == 'wptdensenet121':
+        model = models.my_models.wptdensenet121(args.input_ch).to(args.device)
+        # 1. replace output layer with chexpert number of classes (pretrained loads ImageNet n_classes)
+        model.classifier = nn.Linear(model.classifier.in_features, out_features=n_classes).to(args.device)
+        # 2. init output layer with default torchvision init
+        nn.init.constant_(model.classifier.bias, 0)
+        # 3. store locations of forward and backward hooks for grad-cam
+        grad_cam_hooks = {'forward': model.features.norm5, 'backward': model.classifier}
+        # 4. init optimizer and scheduler
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         scheduler = None
     elif args.model == 'resnet152':
         if args.pretrained:
