@@ -184,11 +184,11 @@ def compute_metrics(outputs, targets, losses):
 
 def train_epoch(model, train_dataloader, valid_dataloader, loss_fn, optimizer, scheduler, writer, epoch, args):
     model.train()
-    images, _, _ = next(iter(train_dataloader))
+    # images, _, _ = next(iter(train_dataloader))
     # # grid = torchvision.utils.make_grid(images)
     # # grid = torchvision.utils.make_grid(images)
     # # writer.add_image("images", grid)
-    writer.add_graph(model, images)
+    # writer.add_graph(model, images)
     # end = time.time()
     with tqdm(total=len(train_dataloader),
               desc=f'Step at start {args.step}; Training epoch {epoch + 1}/{args.n_epochs}') as pbar:
