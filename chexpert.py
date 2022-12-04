@@ -101,7 +101,7 @@ def fetch_dataloader(args, mode):
         transformations.append(wpt_transform.qWPT(DeTr=3, expand=80))  # preform qWPT
 
     transforms = T.Compose(transformations)
-    dataset = ChexpertSmall(args.data_path, mode, transforms, data_filter=args.my_filter, mini_data=args.mini_data, ext=args.ext)
+    dataset = ChexpertSmall(args.data_path, mode, transforms, data_filter=args.filter, mini_data=args.mini_data, ext=args.ext)
     return DataLoader(dataset, args.batch_size, shuffle=(mode == 'train'), pin_memory=(args.device.type == 'cuda'),
                       num_workers=0 if mode == 'valid' else args.num_workers)  # since evaluating the valid_dataloader
     # is called inside the train_dataloader loop, 0 workers for valid_dataloader avoids
