@@ -24,6 +24,7 @@ import pprint
 import argparse
 import time
 import json
+import pprint
 from functools import partial
 
 # dataset and models
@@ -54,8 +55,10 @@ parser.add_argument('--model', default='densenet121',
                     help='What model architecture to use. (densenet121, resnet152, wpt_resnet152)')
 # data params
 parser.add_argument('--mini_data', type=int, help='Truncate dataset to this number of examples.')
-parser.add_argument('--filter', type=json.loads,  default="{}", help='pass filter parameters as json/dictionary '
-                                                                    'e.g. {\'Frontal/Lateral\': \'Frontal\'}')
+# parser.add_argument('--filter', type=str,  default="{}", help='pass filter parameters as json/dictionary '
+#                                                                     'e.g. {\'Frontal/Lateral\': \'Frontal\'}')
+parser.add_argument('--filter', action='append',
+               type=lambda kv: kv.split("=", 1), dest='filter')
 parser.add_argument('--resize', type=int, help='Size of minimum edge to which to resize images.')
 parser.add_argument('--frac', type=int, help='fraction of the data to use (e.g. use 80% of total train)')
 parser.add_argument('--ext', default='img', help='What data type extension to use [img, qwp]')
@@ -455,7 +458,12 @@ def plot_roc(metrics, args, filename, labels=ChexpertSmall.attr_names):
 
 if __name__ == '__main__':
     args = parser.parse_args()
-
+    pp = pprint.PrettyPrinter(indent=4)
+    pp.pprint(args.__dict__)
+    if args.filter is not None:
+        args.filter = dict(args.filter)
+    else:
+        args.filter = {}
     # overwrite args from config
     if args.load_config:
         args.__dict__.update(load_json(args.load_config))
