@@ -57,11 +57,15 @@ parser.add_argument('--model', default='densenet121',
 parser.add_argument('--mini_data', type=int, help='Truncate dataset to this number of examples.')
 parser.add_argument('--f_key', type=str, help='pass filter key parameters e.g. Path, Frontal/Lateral')
 parser.add_argument('--f_value', type=str, help='pass filter value parameters e.g. Frontal Lateral')
-# parser.add_argument('--filter', action='append',
-#                type=lambda kv: kv.split("=", 1), dest='filter')
 parser.add_argument('--resize', type=int, help='Size of minimum edge to which to resize images.')
 parser.add_argument('--frac', type=int, help='fraction of the data to use (e.g. use 80% of total train)')
 parser.add_argument('--ext', default='img', help='What data type extension to use [img, qwp]')
+# wpt parameters
+parser.add_argument('--wpt_d', type=int, default=3, help='set wpt d level, default 3')
+parser.add_argument('--wpt_expand', type=int, help='set wpt expanded dimension, default None')
+parser.add_argument('--wpt_energy_sort', action='store_true', help='sort by wpt energy ')
+parser.add_argument('--wpt_nfreq', type=int, help='n freq to take into account')
+parser.add_argument('--wpt_norm', action='store_true', help='set if normalized data needed')
 # training params
 parser.add_argument('--input_ch', type=int, default=64, help='number of input channels to network.')
 parser.add_argument('--pretrained', action='store_true',
@@ -98,7 +102,13 @@ def fetch_dataloader(args, mode):
         transformations.append(lambda x: x.expand(3, -1, -1))  # expand to 3 channels
     elif args.ext == 'qwp':
         # transformations.append(T.Resize(256))  # resize to power of 2 dimension  (H, W) before qWPT
-        transformations.append(wpt_transform.qWPT(DeTr=3, expand=80))  # preform qWPT
+        transformations.append(wpt_transform.qWPT(
+            DeTr=args.wpt_d,
+            expand=args.wpt_expand,
+            norm=args.wpt_norm,
+            energy_sort=args.wpt_energy_sort,
+            nfreq=args.wpt_nfreq
+        ))  # preform qWPT
 
     transforms = T.Compose(transformations)
     dataset = ChexpertSmall(args.data_path, mode, transforms, data_filter=args.filter, mini_data=args.mini_data, ext=args.ext)
