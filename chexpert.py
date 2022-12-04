@@ -55,10 +55,10 @@ parser.add_argument('--model', default='densenet121',
                     help='What model architecture to use. (densenet121, resnet152, wpt_resnet152)')
 # data params
 parser.add_argument('--mini_data', type=int, help='Truncate dataset to this number of examples.')
-# parser.add_argument('--filter', type=str,  default="{}", help='pass filter parameters as json/dictionary '
-#                                                                     'e.g. {\'Frontal/Lateral\': \'Frontal\'}')
-parser.add_argument('--filter', action='append',
-               type=lambda kv: kv.split("=", 1), dest='filter')
+parser.add_argument('--f_key', type=str, help='pass filter key parameters e.g. Path, Frontal/Lateral')
+parser.add_argument('--f_value', type=str, help='pass filter value parameters e.g. Frontal Lateral')
+# parser.add_argument('--filter', action='append',
+#                type=lambda kv: kv.split("=", 1), dest='filter')
 parser.add_argument('--resize', type=int, help='Size of minimum edge to which to resize images.')
 parser.add_argument('--frac', type=int, help='fraction of the data to use (e.g. use 80% of total train)')
 parser.add_argument('--ext', default='img', help='What data type extension to use [img, qwp]')
@@ -101,7 +101,7 @@ def fetch_dataloader(args, mode):
         transformations.append(wpt_transform.qWPT(DeTr=3, expand=80))  # preform qWPT
 
     transforms = T.Compose(transformations)
-    dataset = ChexpertSmall(args.data_path, mode, transforms, data_filter=args.filter, mini_data=args.mini_data, ext=args.ext)
+    dataset = ChexpertSmall(args.data_path, mode, transforms, data_filter=args.my_filter, mini_data=args.mini_data, ext=args.ext)
     return DataLoader(dataset, args.batch_size, shuffle=(mode == 'train'), pin_memory=(args.device.type == 'cuda'),
                       num_workers=0 if mode == 'valid' else args.num_workers)  # since evaluating the valid_dataloader
     # is called inside the train_dataloader loop, 0 workers for valid_dataloader avoids
@@ -460,10 +460,12 @@ if __name__ == '__main__':
     args = parser.parse_args()
     pp = pprint.PrettyPrinter(indent=4)
     pp.pprint(args.__dict__)
-    if args.filter is not None:
-        args.filter = dict(args.filter)
+    if args.f_key is None or args.f_value is None:
+        my_filter = {}
     else:
-        args.filter = {}
+        my_filter = {args.f_key: args.f_value}
+    args.filter = my_filter
+
     # overwrite args from config
     if args.load_config:
         args.__dict__.update(load_json(args.load_config))
