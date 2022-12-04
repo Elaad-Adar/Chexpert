@@ -122,7 +122,7 @@ class ChexpertSmall(Dataset):
         # 2. fill -1 as 1 (U-Ones method described in paper)  # TODO -- setup options for uncertain labels
         train_df[self.attr_names] = train_df[self.attr_names].replace(-1,1)
 
-        if data_filter is not None:
+        if len(data_filter) != 0:
             # 3. apply attr filters
             # only keep data matching the attribute e.g. df['Frontal/Lateral']=='Frontal'
             for k, v in data_filter.items():
