@@ -66,6 +66,8 @@ parser.add_argument('--wpt_expand', type=int, help='set wpt expanded dimension, 
 parser.add_argument('--wpt_energy_sort', action='store_true', help='sort by wpt energy ')
 parser.add_argument('--wpt_nfreq', type=int, help='n freq to take into account')
 parser.add_argument('--wpt_norm', action='store_true', help='set if normalized data needed')
+parser.add_argument('--wpt_use_originals', action='store_true', help='set if want to stack wpt on original image')
+
 # training params
 parser.add_argument('--input_ch', type=int, default=64, help='number of input channels to network.')
 parser.add_argument('--pretrained', action='store_true',
@@ -107,7 +109,8 @@ def fetch_dataloader(args, mode):
             expand=args.wpt_expand,
             norm=args.wpt_norm,
             energy_sort=args.wpt_energy_sort,
-            nfreq=args.wpt_nfreq
+            nfreq=args.wpt_nfreq,
+            use_originals=args.wpt_use_originals,
         ))  # preform qWPT
 
     transforms = T.Compose(transformations)

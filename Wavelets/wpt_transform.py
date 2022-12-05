@@ -23,7 +23,7 @@ def sort_by_energy(data):
 class qWPT(object):
 
     def __init__(self, DeTr=4, dc=2, Par=5, N=256, printout=False,
-                 vis_channels=False, energy_sort=False, nfreq=None, norm=False, expand=None):
+                 vis_channels=False, energy_sort=False, nfreq=None, norm=False, expand=None, use_originals=False):
         self.DeTr = DeTr
         self.dc = dc
         self.Par = Par
@@ -36,12 +36,14 @@ class qWPT(object):
         self.mat_p, self.mat_m = self.compute_wavelet_transform()
         self.diagonal = wpt_utils.get_diagonal(level=self.DeTr)
         self.vis = vis_channels
+        self.use_originals = use_originals
 
     def __call__(self, image):
         #check dimension
         if image.ndim == 3:
             image = image[0, :, :]
-            image = resize(image, (self.N, self.N), 3)
+            if image.shape != (self.N, self.N):
+                image = resize(image, (self.N, self.N), 3)
         qwp_mat, _ = self.transform_image(image)
         # sort the matrix into stacked order
         data = self.stack_sub_bands(qwp_mat)
@@ -49,8 +51,10 @@ class qWPT(object):
             data = sort_by_energy(data)
         if self.nfreq is not None:
             data = data[:self.nfreq, :, :]
-        # if self.expand is not None:
-        #     data = wpt_utils.resize_image(data, self.expand, self.expand)
+        if self.use_originals:
+            image = np.expand_dims(image, axis=0)
+            data = np.vstack([image, data])
+            return data
         return data
 
     def compute_wavelet_transform(self):
@@ -64,8 +68,6 @@ class qWPT(object):
 
     def transform_image(self, image):
         # TODO add description here
-        # image = np.array(image)
-        # image = wpt_utils.resize_image(image, self.N, self.N)
         ptran, mtran = WP_an_2dMP(image, self.DeTr, self.mat_p, self.mat_p, self.mat_m)
 
         if self.printout:
@@ -81,7 +83,6 @@ class qWPT(object):
         graph_row = 2 ** self.DeTr
         div = self.DeTr - 1
         split = r // graph_row
-        # diag = wpt_utils.get_diagonal(level=self.DeTr)
         numOfChannels = len(self.diagonal)
         new_tensor = np.zeros((numOfChannels, split, split), dtype='float')
         for idx, (i, j) in enumerate(self.diagonal):
@@ -90,14 +91,12 @@ class qWPT(object):
                     np.real(mat[i * split:i * split + split, j * split:j * split + split, div]))
             else:
                 new_tensor[idx, :, :] = np.real(mat[i * split:i * split + split, j * split:j * split + split, div])
-        image_array = (new_tensor[:, :, :]).astype(np.uint8)
+        image_array = new_tensor[:, :, :]
 
         if self.expand is not None:
-            new_tensor2 = np.zeros((numOfChannels, self.expand, self.expand), dtype='double')
-            for c in range(numOfChannels):
-                new_tensor2[c, :, :] = resize(image_array[c, :, :], (self.expand, self.expand), order=3)
-            return new_tensor2
-        return image_array
+            new_tensor2 = resize(image_array, (numOfChannels, self.expand, self.expand), order=3)
+            return (new_tensor2).astype(np.uint8)
+        return (image_array).astype(np.uint8)
 
     def show_image(self, image, title=None):
         # x = wpt_utils.resize_image(image, self.N, self.N)
@@ -127,18 +126,20 @@ class qWPT(object):
 
 if __name__ == "__main__":
     ti = qWPT(DeTr=3, vis_channels=True)
-    image2add = PIL.Image.open("view1_frontal.jpg")
+    image2add = PIL.Image.open("E:\Thesis\Images\HD samples\Atelectasis_frontal.jpg")
     print(f'W={image2add.width}, H={image2add.height}')
     plt.imshow(image2add, cmap="gray")
     plt.title("original image")
     plt.show()
-    transformations = [T.CenterCrop(320),
+    transformations = [T.Resize(1024),
+        T.CenterCrop(1024),
                        lambda x: torch.from_numpy(np.array(x, copy=True)).float().div(255).unsqueeze(0),
-                       T.Normalize(mean=[0.5330], std=[0.0349]), qWPT(DeTr=3, expand=80, vis_channels=True)]
+                       T.Normalize(mean=[0.5330], std=[0.0349]), qWPT(DeTr=3, N=1024, expand=80, vis_channels=True)
+                       ]
     transforms = T.Compose(transformations)
     x = np.asarray(transforms(image2add))
     print(x.shape)
-    # ti.show_image(image=x, title="image after transformation")
+    ti.show_image(image=x, title="image after transformation")
     for i in range(5):
         id = random.randrange(0, 64)
         plt.imshow(x[id, :, :], cmap="gray")
