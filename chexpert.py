@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torchvision
 import torchvision.transforms as T
 from torch.utils.data import DataLoader, TensorDataset
 
@@ -9,13 +8,11 @@ import numpy as np
 import matplotlib
 
 import models.my_models
-import utils
 from Wavelets import wpt_transform
-from utils import AverageMeter, ProgressMeter, writer_add_scalars, accuracy
 
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from sklearn.metrics import roc_curve, auc, precision_recall_curve
+from sklearn.metrics import roc_curve, auc, precision_recall_curve, accuracy_score
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
 
@@ -25,13 +22,12 @@ import argparse
 import time
 import json
 import pprint
-from functools import partial
+
 
 # dataset and models
 from dataset import ChexpertSmall, extract_patient_ids
-from torchvision.models import densenet121, resnet152, DenseNet121_Weights, ResNet152_Weights
-from models.efficientnet import construct_model
-from models.attn_aug_conv import DenseNet, ResNet, Bottleneck
+from torchvision.models import densenet121, resnet152 # DenseNet121_Weights, ResNet152_Weights
+
 
 parser = argparse.ArgumentParser()
 # action
@@ -171,22 +167,46 @@ def save_checkpoint(checkpoint, optim_checkpoint, sched_checkpoint, args, max_re
 # --------------------
 # Evaluation metrics
 # --------------------
+def add_pr_curve_tensorboard(class_index, test_probs, test_label, global_step=0):
+    '''
+    Takes in a "class_index" from 0 to 9 and plots the corresponding
+    precision-recall curve
+    '''
+    tensorboard_truth = test_label == class_index
+    tensorboard_probs = test_probs
+
+    writer.add_pr_curve(ChexpertSmall.attr_names[class_index],
+                        tensorboard_truth,
+                        tensorboard_probs,
+                        global_step=global_step)
+
 
 def compute_metrics(outputs, targets, losses):
+    # add accuracy_score, average_precision_score, top_k_accuracy_score
     n_classes = outputs.shape[1]
-    fpr, tpr, aucs, precision, recall = {}, {}, {}, {}, {}
+    # getting true predicated as [0, 1]
+    _outputs = torch.round(torch.sigmoid(outputs))
+    N = outputs.shape[0]
+    accuracy = (_outputs == targets).sum() / (N * n_classes) * 100
+    fpr, tpr, aucs, precision, recall, acc_score, avg_p_score = {}, {}, {}, {}, {}, {}, {}
     for i in range(n_classes):
+        # avg_p_score[i] = average_precision_score(targets[:, i], _outputs[:, i])
+        acc_score[i] = accuracy_score(targets[:, i], _outputs[:, i])
         fpr[i], tpr[i], _ = roc_curve(targets[:, i], outputs[:, i])
         aucs[i] = auc(fpr[i], tpr[i])
         precision[i], recall[i], _ = precision_recall_curve(targets[:, i], outputs[:, i])
-        fpr[i], tpr[i], precision[i], recall[i] = fpr[i].tolist(), tpr[i].tolist(), precision[i].tolist(), \
-                                                  recall[i].tolist()
+        fpr[i], tpr[i], precision[i], recall[i] = fpr[i].tolist(), tpr[i].tolist(), precision[i].tolist(), recall[i].tolist()
+        add_pr_curve_tensorboard(i, _outputs[:, i], targets[:, i])
     mean_auc = sum(aucs.values()) / len(aucs)
+    new_mean_auc = np.nanmean(list(aucs.values()))
 
     metrics = {
         'mean_auc': mean_auc,
-        'loss': dict(enumerate(losses.mean(0).tolist())),
+        'new_mean_auc': new_mean_auc,
+        'class_acc': acc_score,
+        'accuracy': accuracy,
         'aucs': aucs,
+        'loss': dict(enumerate(losses.mean(0).tolist())),
         'fpr': fpr,
         'tpr': tpr,
         'precision': precision,
@@ -235,19 +255,32 @@ def train_epoch(model, train_dataloader, valid_dataloader, loss_fn, optimizer, s
                     model.eval()
 
                     eval_metrics = evaluate_single_model(model, valid_dataloader, loss_fn, args)
-
+                    # writer.add_figure('predictions vs. actuals',
+                    #                   plot_classes_preds(net, inputs, labels),
+                    #                   global_step=args.step)
                     writer.add_scalar('loss/eval_loss', np.sum(list(eval_metrics['loss'].values())), args.step)
                     for k, v in eval_metrics['aucs'].items():
                         writer.add_scalar('auc/eval_auc_class_{}'.format(k), v, args.step)
+                    for k, v in eval_metrics['class_acc'].items():
+                        writer.add_scalar('accuracy/eval_acc_class_{}'.format(k), v, args.step)
+                    writer.add_scalar('accuracy/accuracy', eval_metrics['accuracy'], args.step)
                     # save model
                     save_checkpoint(checkpoint={'global_step': args.step,
                                                 'eval_loss': np.sum(list(eval_metrics['loss'].values())),
                                                 'avg_auc': np.nanmean(list(eval_metrics['aucs'].values())),
+                                                'avg_acc': np.nanmean(list(eval_metrics['class_acc'].values())),
+                                                'accuracy': eval_metrics['accuracy'],
                                                 'state_dict': model.state_dict()},
                                     optim_checkpoint=optimizer.state_dict(),
                                     sched_checkpoint=scheduler.state_dict() if scheduler else None,
                                     args=args)
-
+                    pbar.set_postfix(
+                        loss='{:.4f}'.format(loss.item()),
+                        eval_loss='{:.4f}'.format(np.sum(list(eval_metrics['loss'].values()))),
+                        acc='{:.4f}'.format(eval_metrics['accuracy']),
+                        avg_auc='{:.4f}'.format(np.nanmean(list(eval_metrics['aucs'].values()))),
+                    )
+                    pbar.update()
                     # switch back to train mode
                     model.train()
 
@@ -274,8 +307,7 @@ def evaluate_single_model(model, dataloader, loss_fn, args):
 
 
 def evaluate_ensemble(model, dataloader, loss_fn, args):
-    checkpoints = [c for c in os.listdir(args.restore) \
-                   if c.startswith('checkpoint') and c.endswith('.pt')]
+    checkpoints = [c for c in os.listdir(args.restore) if c.startswith('checkpoint') and c.endswith('.pt')]
     print('Running ensemble prediction using {} checkpoints.'.format(len(checkpoints)))
     outputs, losses = [], []
     for checkpoint in checkpoints:
@@ -520,10 +552,10 @@ if __name__ == '__main__':
     # load model
     n_classes = len(ChexpertSmall.attr_names)
     if args.model == 'densenet121':
-        if args.pretrained:
-            model = densenet121(weights=DenseNet121_Weights.IMAGENET1K_V1).to(args.device)
-        else:
-            model = densenet121(weights=None).to(args.device)
+        # if args.pretrained:
+        #     model = densenet121(weights=DenseNet121_Weights.IMAGENET1K_V1).to(args.device)
+        # else:
+        model = densenet121().to(args.device)
         # 1. replace output layer with chexpert number of classes (pretrained loads ImageNet n_classes)
         model.classifier = nn.Linear(model.classifier.in_features, out_features=n_classes).to(args.device)
         # 2. init output layer with default torchvision init
@@ -556,10 +588,10 @@ if __name__ == '__main__':
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         scheduler = None
     elif args.model == 'resnet152':
-        if args.pretrained:
-            model = resnet152(weights=ResNet152_Weights.IMAGENET1K_V2).to(args.device)
-        else:
-            model = resnet152(weights=None).to(args.device)
+        # if args.pretrained:
+        #     model = resnet152(weights=ResNet152_Weights.IMAGENET1K_V2).to(args.device)
+        # else:
+        model = resnet152().to(args.device)
         model.fc = nn.Linear(model.fc.in_features, out_features=n_classes).to(args.device)
         grad_cam_hooks = {'forward': model.layer4, 'backward': model.fc}
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
