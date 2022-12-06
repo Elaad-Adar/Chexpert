@@ -196,7 +196,7 @@ def compute_metrics(outputs, targets, losses):
         aucs[i] = auc(fpr[i], tpr[i])
         precision[i], recall[i], _ = precision_recall_curve(targets[:, i], outputs[:, i])
         fpr[i], tpr[i], precision[i], recall[i] = fpr[i].tolist(), tpr[i].tolist(), precision[i].tolist(), recall[i].tolist()
-        add_pr_curve_tensorboard(i, _outputs[:, i], targets[:, i])
+        add_pr_curve_tensorboard(i, _outputs[:, i], targets[:, i], global_step=args.step)
     mean_auc = sum(aucs.values()) / len(aucs)
     new_mean_auc = np.nanmean(list(aucs.values()))
 
