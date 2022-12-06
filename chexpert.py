@@ -1,3 +1,4 @@
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -190,7 +191,6 @@ def compute_metrics(outputs, targets, losses):
     accuracy = (_outputs == targets).sum() / (N * n_classes) * 100
     fpr, tpr, aucs, precision, recall, acc_score, avg_p_score = {}, {}, {}, {}, {}, {}, {}
     for i in range(n_classes):
-        # avg_p_score[i] = average_precision_score(targets[:, i], _outputs[:, i])
         acc_score[i] = accuracy_score(targets[:, i], _outputs[:, i])
         fpr[i], tpr[i], _ = roc_curve(targets[:, i], outputs[:, i])
         aucs[i] = auc(fpr[i], tpr[i])
