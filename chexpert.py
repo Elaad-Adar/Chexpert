@@ -188,7 +188,7 @@ def compute_metrics(outputs, targets, losses):
     # getting true predicated as [0, 1]
     _outputs = torch.round(torch.sigmoid(outputs))
     N = outputs.shape[0]
-    accuracy = (_outputs == targets).sum() / (N * n_classes) * 100
+    accuracy = ((_outputs == targets).sum() / (N * n_classes) * 100).item()
     fpr, tpr, aucs, precision, recall, acc_score, avg_p_score = {}, {}, {}, {}, {}, {}, {}
     for i in range(n_classes):
         acc_score[i] = accuracy_score(targets[:, i], _outputs[:, i])
@@ -341,7 +341,9 @@ def train_and_evaluate(model, train_dataloader, valid_dataloader, loss_fn, optim
         writer.add_scalar('loss/eval_loss', np.sum(list(eval_metrics['loss'].values())), args.step)
         for k, v in eval_metrics['aucs'].items():
             writer.add_scalar('auc/eval_auc_class_{}'.format(k), v, args.step)
-
+        for k, v in eval_metrics['class_acc'].items():
+            writer.add_scalar('accuracy/eval_acc_class_{}'.format(k), v, args.step)
+        writer.add_scalar('accuracy/accuracy', eval_metrics['accuracy'], args.step)
         # save eval metrics
         save_json(eval_metrics, 'eval_results_step_{}'.format(args.step), args)
 
