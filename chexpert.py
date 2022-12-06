@@ -337,6 +337,8 @@ def train_and_evaluate(model, train_dataloader, valid_dataloader, loss_fn, optim
         print('Evaluate metrics @ step {}:'.format(args.step))
         print('AUC:\n', pprint.pformat(eval_metrics['aucs']))
         print('Mean AUC:\n', pprint.pformat(eval_metrics['mean_auc']))
+        print('Accuracy:\n', pprint.pformat(eval_metrics['accuracy']))
+        print('Class Accuracy:\n', pprint.pformat(eval_metrics['class_acc']))
         print('Loss:\n', pprint.pformat(eval_metrics['loss']))
         writer.add_scalar('loss/eval_loss', np.sum(list(eval_metrics['loss'].values())), args.step)
         for k, v in eval_metrics['aucs'].items():
@@ -653,6 +655,8 @@ if __name__ == '__main__':
         print('Evaluate metrics -- \n\t restore: {} \n\t step: {}:'.format(args.restore, args.step))
         print('AUC:\n', pprint.pformat(eval_metrics['aucs']))
         print('Mean AUC:\n', pprint.pformat(eval_metrics['mean_auc']))
+        print('Accuracy:\n', pprint.pformat(eval_metrics['accuracy']))
+        print('Class Accuracy:\n', pprint.pformat(eval_metrics['class_acc']))
         print('Loss:\n', pprint.pformat(eval_metrics['loss']))
         save_json(eval_metrics, 'eval_results_step_{}'.format(args.step), args)
 
@@ -662,6 +666,8 @@ if __name__ == '__main__':
         print('Evaluate ensemble metrics -- \n\t checkpoints path {}:'.format(args.restore))
         print('AUC:\n', pprint.pformat(eval_metrics['aucs']))
         print('Mean AUC:\n', pprint.pformat(eval_metrics['mean_auc']))
+        print('Accuracy:\n', pprint.pformat(eval_metrics['accuracy']))
+        print('Class Accuracy:\n', pprint.pformat(eval_metrics['class_acc']))
         print('Loss:\n', pprint.pformat(eval_metrics['loss']))
         save_json(eval_metrics, 'eval_results_ensemble', args)
 
