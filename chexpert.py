@@ -221,14 +221,14 @@ def images_to_probs(net, images):
     output = net(images)
     # convert output probabilities to predicted class
     _, preds_tensor = torch.max(output, 1)
-    preds = np.squeeze(preds_tensor.numpy())
+    preds = np.squeeze(preds_tensor.cpu().numpy())
     return preds, [F.softmax(el, dim=0)[i].item() for i, el in zip(preds, output)]
 
 def matplotlib_imshow(img, one_channel=False):
     if one_channel:
         img = img.mean(dim=0)
     img = img / 2 + 0.5     # unnormalize
-    npimg = img.numpy()
+    npimg = img.cpu().numpy()
     if one_channel:
         plt.imshow(npimg, cmap="Greys")
     else:
@@ -253,6 +253,7 @@ def plot_classes_preds(net, images, labels):
             probs[idx] * 100.0,
             ChexpertSmall.attr_names[int(labels[idx][preds[idx]].item())]),
                     color=("green" if preds[idx] == labels[idx][preds[idx]].item() else "red"))
+    fig.tight_layout()
     return fig
 # --------------------
 # Train and evaluate
@@ -303,7 +304,7 @@ def train_epoch(model, train_dataloader, valid_dataloader, loss_fn, optimizer, s
                         writer.add_scalar('accuracy/eval_acc_class_{}'.format(k), v, args.step)
                     writer.add_scalar('accuracy/accuracy', eval_metrics['accuracy'], args.step)
                     writer.add_figure('predictions vs. labels',
-                                      plot_classes_preds(model, x, target),
+                                      plot_classes_preds(model, x.to(args.device), target.to(args.device)),
                                       global_step=args.step)
                     # save model
                     save_checkpoint(checkpoint={'global_step': args.step,
