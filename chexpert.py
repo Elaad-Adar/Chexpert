@@ -1,4 +1,3 @@
-import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -24,11 +23,9 @@ import time
 import json
 import pprint
 
-
 # dataset and models
 from dataset import ChexpertSmall, extract_patient_ids
-from torchvision.models import densenet121, resnet152 # DenseNet121_Weights, ResNet152_Weights
-
+from torchvision.models import densenet121, resnet152
 
 parser = argparse.ArgumentParser()
 # action
@@ -89,13 +86,12 @@ parser.add_argument('--num_workers', type=int, default=0, help='define number of
 
 def fetch_dataloader(args, mode):
     assert mode in ['train', 'valid', 'vis']
-
     transformations = [
         T.Resize(args.resize) if args.resize else T.Lambda(lambda x: x),
         T.CenterCrop(320 if not args.resize else args.resize),
         lambda x: torch.from_numpy(np.array(x, copy=True)).float().div(255).unsqueeze(0),  # tensor in [0,1]
         T.Normalize(mean=[0.5330], std=[0.0349]),  # whiten with dataset mean and std
-        ]
+    ]
 
     if args.ext == "img":
         transformations.append(lambda x: x.expand(3, -1, -1))  # expand to 3 channels
@@ -111,7 +107,8 @@ def fetch_dataloader(args, mode):
         ))  # preform qWPT
 
     transforms = T.Compose(transformations)
-    dataset = ChexpertSmall(args.data_path, mode, transforms, data_filter=args.filter, mini_data=args.mini_data, ext=args.ext)
+    dataset = ChexpertSmall(args.data_path, mode, transforms, data_filter=args.filter, mini_data=args.mini_data,
+                            ext=args.ext)
     return DataLoader(dataset, args.batch_size, shuffle=(mode == 'train'), pin_memory=(args.device.type == 'cuda'),
                       num_workers=0 if mode == 'valid' else args.num_workers)  # since evaluating the valid_dataloader
     # is called inside the train_dataloader loop, 0 workers for valid_dataloader avoids
@@ -195,10 +192,11 @@ def compute_metrics(outputs, targets, losses):
         fpr[i], tpr[i], _ = roc_curve(targets[:, i], outputs[:, i])
         aucs[i] = auc(fpr[i], tpr[i])
         precision[i], recall[i], _ = precision_recall_curve(targets[:, i], outputs[:, i])
-        fpr[i], tpr[i], precision[i], recall[i] = fpr[i].tolist(), tpr[i].tolist(), precision[i].tolist(), recall[i].tolist()
-        add_pr_curve_tensorboard(i, _outputs[:, i], targets[:, i], global_step=args.step)
-    mean_auc = sum(aucs.values()) / len(aucs)
-    new_mean_auc = np.nanmean(list(aucs.values()))
+        fpr[i], tpr[i], precision[i], recall[i] = fpr[i].tolist(), tpr[i].tolist(), precision[i].tolist(), recall[
+            i].tolist()
+        # add_pr_curve_tensorboard(i, _outputs[:, i], targets[:, i], global_step=args.step)
+    mean_auc = sum(aucs.values()) / len(aucs) * 100
+    new_mean_auc = np.nanmean(list(aucs.values())) * 100
 
     metrics = {
         'mean_auc': mean_auc,
@@ -215,7 +213,47 @@ def compute_metrics(outputs, targets, losses):
 
     return metrics
 
+def images_to_probs(net, images):
+    '''
+    Generates predictions and corresponding probabilities from a trained
+    network and a list of images
+    '''
+    output = net(images)
+    # convert output probabilities to predicted class
+    _, preds_tensor = torch.max(output, 1)
+    preds = np.squeeze(preds_tensor.numpy())
+    return preds, [F.softmax(el, dim=0)[i].item() for i, el in zip(preds, output)]
 
+def matplotlib_imshow(img, one_channel=False):
+    if one_channel:
+        img = img.mean(dim=0)
+    img = img / 2 + 0.5     # unnormalize
+    npimg = img.numpy()
+    if one_channel:
+        plt.imshow(npimg, cmap="Greys")
+    else:
+        plt.imshow(np.transpose(npimg, (1, 2, 0)))
+
+def plot_classes_preds(net, images, labels):
+    '''
+    Generates matplotlib Figure using a trained network, along with images
+    and labels from a batch, that shows the network's top prediction along
+    with its probability, alongside the actual label, coloring this
+    information based on whether the prediction was correct or not.
+    Uses the "images_to_probs" function.
+    '''
+    preds, probs = images_to_probs(net, images)
+    # plot the images in the batch, along with predicted and true labels
+    fig = plt.figure(figsize=(10, 10))
+    for idx in np.arange(images.shape[0]):
+        ax = fig.add_subplot((images.shape[0] // 4), 4, idx+1, xticks=[], yticks=[])
+        matplotlib_imshow(images[idx], one_channel=True)
+        ax.set_title("{0}, {1:.1f}%\n(label: {2})".format(
+            ChexpertSmall.attr_names[preds[idx]],
+            probs[idx] * 100.0,
+            ChexpertSmall.attr_names[int(labels[idx][preds[idx]].item())]),
+                    color=("green" if preds[idx] == labels[idx][preds[idx]].item() else "red"))
+    return fig
 # --------------------
 # Train and evaluate
 # --------------------
@@ -264,6 +302,9 @@ def train_epoch(model, train_dataloader, valid_dataloader, loss_fn, optimizer, s
                     for k, v in eval_metrics['class_acc'].items():
                         writer.add_scalar('accuracy/eval_acc_class_{}'.format(k), v, args.step)
                     writer.add_scalar('accuracy/accuracy', eval_metrics['accuracy'], args.step)
+                    writer.add_figure('predictions vs. labels',
+                                      plot_classes_preds(model, x, target),
+                                      global_step=args.step)
                     # save model
                     save_checkpoint(checkpoint={'global_step': args.step,
                                                 'eval_loss': np.sum(list(eval_metrics['loss'].values())),
@@ -569,17 +610,6 @@ if __name__ == '__main__':
         # 4. init optimizer and scheduler
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         scheduler = None
-    elif args.model == 'mydensenet121':
-        model = models.my_models.densenet121().to(args.device)
-        # 1. replace output layer with chexpert number of classes (pretrained loads ImageNet n_classes)
-        model.classifier = nn.Linear(model.classifier.in_features, out_features=n_classes).to(args.device)
-        # 2. init output layer with default torchvision init
-        nn.init.constant_(model.classifier.bias, 0)
-        # 3. store locations of forward and backward hooks for grad-cam
-        grad_cam_hooks = {'forward': model.features.norm5, 'backward': model.classifier}
-        # 4. init optimizer and scheduler
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-        scheduler = None
     elif args.model == 'wptdensenet121':
         model = models.my_models.wptdensenet121(args.input_ch).to(args.device)
         # 1. replace output layer with chexpert number of classes (pretrained loads ImageNet n_classes)
@@ -595,8 +625,14 @@ if __name__ == '__main__':
         # if args.pretrained:
         #     model = resnet152(weights=ResNet152_Weights.IMAGENET1K_V2).to(args.device)
         # else:
-        model = resnet152().to(args.device)
+        model = models.my_models.resnet_152().to(args.device)
         model.fc = nn.Linear(model.fc.in_features, out_features=n_classes).to(args.device)
+        grad_cam_hooks = {'forward': model.layer4, 'backward': model.fc}
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+        scheduler = None
+    elif args.model == 'dual':
+        model = models.my_models.DualResNet().to(args.device)
+        model.final_fc1 = nn.Linear(model.final_fc1.in_features, out_features=n_classes).to(args.device)
         grad_cam_hooks = {'forward': model.layer4, 'backward': model.fc}
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         scheduler = None
