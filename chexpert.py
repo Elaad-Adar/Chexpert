@@ -294,7 +294,7 @@ def train_epoch(model, train_dataloader, valid_dataloader, loss_fn, optimizer, s
                     model.eval()
 
                     eval_metrics = evaluate_single_model(model, valid_dataloader, loss_fn, args)
-                    writer.add_scalar('auc/mean_auc', eval_metrics['mean_auc'], args.step)
+                    writer.add_scalar('auc/avg_auc', eval_metrics['mean_auc'], args.step)
                     writer.add_scalar('loss/eval_loss', np.sum(list(eval_metrics['loss'].values())), args.step)
                     for k, v in eval_metrics['aucs'].items():
                         writer.add_scalar('auc/eval_auc_class_{}'.format(k), v, args.step)
