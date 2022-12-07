@@ -41,7 +41,7 @@ def Psi_PhiTMP(N, Par, DeTr):
     fpsi_lev[0, :] = beta
     psi_lev[0, :] = np.real(np.fft.ifft(fpsi_lev[0, :]))
     psi_lev[0, :] = psi_lev[0, :] / np.linalg.norm(psi_lev[0, :])
-    fpsi_lev[0, :] = fpsi_lev[0, :] / np.linalg.norm(psi_lev[0, :])  # todo: should it be /np.linalg.norm(fpsi_lev[0, :])?
+    fpsi_lev[0, :] = fpsi_lev[0, :] / np.linalg.norm(psi_lev[0, :])
     fz_lev[0, :] = np.zeros((1, M))
     fz_lev[0, 0] = (1 + 1j) * fpsi_lev[0, 0]
     fz_lev[0, M // 2] = (1 + 1j) * fpsi_lev[0, M // 2]
@@ -57,7 +57,7 @@ def Psi_PhiTMP(N, Par, DeTr):
 
     psi_lev[1, :] = np.real(np.fft.ifft(fpsi_lev[1, :]))
     psi_lev[1, :] = psi_lev[1, :] / np.linalg.norm(psi_lev[1, :])
-    fpsi_lev[1, :] = fpsi_lev[1, :] / np.linalg.norm(psi_lev[1, :])  # todo:  should it be /np.linalg.norm(fpsi_lev[1, :])?
+    fpsi_lev[1, :] = fpsi_lev[1, :] / np.linalg.norm(psi_lev[1, :])
     # fz_lev[1, :] = np.zeros(2, M)
     fz_lev[1, 0] = (1 + 1j) * fpsi_lev[1, 0]
     fz_lev[1, M // 2] = (1 + 1j) * fpsi_lev[1, M // 2]
@@ -202,7 +202,7 @@ def juviTSsk(Par,N):
     V = BSU[Par - 1, 15 + np.arange(Par)]
     U = BSU[Par - 1, :Par]
     dv = np.where(np.diff(V, axis=0) == 0)[0][0] + 1
-    vv = np.zeros(max(Par, N), dtype='complex')  # todo: check max(Par, N)
+    vv = np.zeros(max(Par, N), dtype='complex')
     # vv = np.zeros((1, N), dtype='complex')
     # vv.reshape(-1)[:Par]
     vv[:Par] = V

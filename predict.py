@@ -9,10 +9,7 @@ from chexpert import fetch_dataloader, load_json, densenet121, resnet152
 from dataset import ChexpertSmall, extract_patient_ids
 
 
-# TODO  1. fix defaults for:
-#           a/ restore_path to codalab `src/<path>` convention for ensemble or single model
-#           b/ model
-#           c/ resize
+
 
 
 parser = argparse.ArgumentParser()

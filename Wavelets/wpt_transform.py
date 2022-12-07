@@ -58,7 +58,6 @@ class qWPT(object):
         return data
 
     def compute_wavelet_transform(self):
-        # TODO add description here
         matrm_p = matmMP(self.N, self.Par, self.DeTr, 3, self.dc)
         matrm_m = matmMP(self.N, self.Par, self.DeTr, 4, self.dc)
         if self.printout:
@@ -67,7 +66,6 @@ class qWPT(object):
         return matrm_p, matrm_m
 
     def transform_image(self, image):
-        # TODO add description here
         ptran, mtran = WP_an_2dMP(image, self.DeTr, self.mat_p, self.mat_p, self.mat_m)
 
         if self.printout:
@@ -78,7 +76,6 @@ class qWPT(object):
         return ptran, mtran
 
     def stack_sub_bands(self, mat):
-        # TODO add description here
         r, c, num_of_graph = mat.shape
         graph_row = 2 ** self.DeTr
         div = self.DeTr - 1

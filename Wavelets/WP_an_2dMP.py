@@ -11,7 +11,7 @@ def WP_an_2dMP(x, DeTr, MatrM_pv,MatrM_ph,MatrM_m):
     # ptran and mtran are transform coeff. from levels from 1 to DeTr  for "positive" and "negative" transforms
     # DeTr: depth of decomposition
 
-    # TODO find out why ptran is with both positive mat and mtran is one positive and one negative?
+
     ptran = dsp_wq_an_2d_sk(x, DeTr, MatrM_ph, MatrM_pv)
     mtran = dsp_wq_an_2d_sk(x, DeTr, MatrM_ph, MatrM_m)
 

@@ -24,10 +24,11 @@ class ChexpertSmall(Dataset):
     # select only the competition labels
     attr_names = ['Atelectasis', 'Cardiomegaly', 'Consolidation', 'Edema', 'Pleural Effusion']
 
-    def __init__(self, root, mode='train', transform=None, data_filter=None, mini_data=None, ext='jpg'):
+    def __init__(self, root, mode='train', img_transform=None, wpt_transform=None, data_filter=None, mini_data=None, ext='jpg'):
         self.ext = ext
         self.root = os.path.expanduser(root)
-        self.transform = transform
+        self.img_transform = img_transform
+        self.wpt_transform = wpt_transform
         assert mode in ['train', 'valid', 'test', 'vis']
         self.mode = mode
 
@@ -74,9 +75,12 @@ class ChexpertSmall(Dataset):
     def __getitem__(self, idx):
         # 1. select and load image
         img_path = self.data.iloc[idx, 0]  # 'Path' column is 0
-        img = Image.open(os.path.join(self.root, img_path))
-        if self.transform is not None:
-            img = self.transform(img)
+        orig_img = Image.open(os.path.join(self.root, img_path))
+        if self.img_transform is not None:
+            img = self.img_transform(orig_img)
+        if self.wpt_transform is not None:
+            wpt = self.wpt_transform(orig_img)
+
 
         # 2. select attributes as targets
         attr = self.data.iloc[idx, self.attr_idxs].values.astype(np.float32)
@@ -87,7 +91,7 @@ class ChexpertSmall(Dataset):
         idx = self.data.index[idx]  # idx is based on len(self.data); if we are taking a subset of the data, idx will be relative to len(subset);
                                     # self.data.index(idx) pulls the index in the original dataframe and not the subset
 
-        return img, attr, idx
+        return img, torch.tensor(wpt).float(), attr, idx
 
     def __len__(self):
         return len(self.data)
@@ -97,7 +101,7 @@ class ChexpertSmall(Dataset):
         # Dataset labels are: blank for unmentioned, 0 for negative, -1 for uncertain, and 1 for positive.
         # Process by:
         #    1. fill NAs (blanks for unmentioned) as 0 (negatives)
-        #    2. fill -1 as 1 (U-Ones method described in paper)  # TODO -- setup options for uncertain labels
+        #    2. fill -1 as 1 (U-Ones method described in paper)
         #    3. apply attr filters as a dictionary {data_attribute: value_to_keep} e.g. {'Frontal/Lateral': 'Frontal'}
 
         # check for processed .pt files
@@ -119,7 +123,7 @@ class ChexpertSmall(Dataset):
         # attr columns ['No Finding', ..., 'Support Devices']; note AP/PA remains with NAs for Lateral pictures
         train_df[self.attr_names] = train_df[self.attr_names].fillna(0)
 
-        # 2. fill -1 as 1 (U-Ones method described in paper)  # TODO -- setup options for uncertain labels
+        # 2. fill -1 as 1 (U-Ones method described in paper)
         train_df[self.attr_names] = train_df[self.attr_names].replace(-1,1)
 
         if len(data_filter) != 0:

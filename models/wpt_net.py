@@ -104,6 +104,10 @@ def wpt_resnet_50(input_channels, **kwargs):
     return model
 
 
+def wpt_resnet_152(input_channels, **kwargs):
+    model = WPTResNet(input_channels, models.resnet.Bottleneck, [3, 8, 36, 3], **kwargs)
+    return model
+
 if __name__ == '__main__':
     from torchsummary import summary
     import models.my_models

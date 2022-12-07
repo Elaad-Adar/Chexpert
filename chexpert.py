@@ -86,28 +86,31 @@ parser.add_argument('--num_workers', type=int, default=0, help='define number of
 
 def fetch_dataloader(args, mode):
     assert mode in ['train', 'valid', 'vis']
-    transformations = [
+    img_transformations = T.Compose([
         T.Resize(args.resize) if args.resize else T.Lambda(lambda x: x),
         T.CenterCrop(320 if not args.resize else args.resize),
         lambda x: torch.from_numpy(np.array(x, copy=True)).float().div(255).unsqueeze(0),  # tensor in [0,1]
         T.Normalize(mean=[0.5330], std=[0.0349]),  # whiten with dataset mean and std
-    ]
+        lambda x: x.expand(3, -1, -1)
+    ])
 
-    if args.ext == "img":
-        transformations.append(lambda x: x.expand(3, -1, -1))  # expand to 3 channels
-    elif args.ext == 'qwp':
-        # transformations.append(T.Resize(256))  # resize to power of 2 dimension  (H, W) before qWPT
-        transformations.append(wpt_transform.qWPT(
+    wpt_transformations = T.Compose([
+        T.Resize(args.resize) if args.resize else T.Lambda(lambda x: x),
+        T.CenterCrop(320 if not args.resize else args.resize),
+        lambda x: torch.from_numpy(np.array(x, copy=True)).float().div(255).unsqueeze(0),  # tensor in [0,1]
+        T.Normalize(mean=[0.5330], std=[0.0349]),  # whiten with dataset mean and std
+        wpt_transform.qWPT(
             DeTr=args.wpt_d,
             expand=args.wpt_expand,
             norm=args.wpt_norm,
             energy_sort=args.wpt_energy_sort,
             nfreq=args.wpt_nfreq,
             use_originals=args.wpt_use_originals,
-        ))  # preform qWPT
+        )
+    ])
 
-    transforms = T.Compose(transformations)
-    dataset = ChexpertSmall(args.data_path, mode, transforms, data_filter=args.filter, mini_data=args.mini_data,
+    dataset = ChexpertSmall(args.data_path, mode, img_transformations, wpt_transformations, data_filter=args.filter,
+                            mini_data=args.mini_data,
                             ext=args.ext)
     return DataLoader(dataset, args.batch_size, shuffle=(mode == 'train'), pin_memory=(args.device.type == 'cuda'),
                       num_workers=0 if mode == 'valid' else args.num_workers)  # since evaluating the valid_dataloader
@@ -213,12 +216,12 @@ def compute_metrics(outputs, targets, losses):
 
     return metrics
 
-def images_to_probs(net, images):
+def images_to_probs(net, images, wavelets):
     '''
     Generates predictions and corresponding probabilities from a trained
     network and a list of images
     '''
-    output = net(images)
+    output = net(images, wavelets)
     # convert output probabilities to predicted class
     _, preds_tensor = torch.max(output, 1)
     preds = np.squeeze(preds_tensor.cpu().numpy())
@@ -234,7 +237,7 @@ def matplotlib_imshow(img, one_channel=False):
     else:
         plt.imshow(np.transpose(npimg, (1, 2, 0)))
 
-def plot_classes_preds(net, images, labels):
+def plot_classes_preds(net, images, wavelets, labels):
     '''
     Generates matplotlib Figure using a trained network, along with images
     and labels from a batch, that shows the network's top prediction along
@@ -242,7 +245,7 @@ def plot_classes_preds(net, images, labels):
     information based on whether the prediction was correct or not.
     Uses the "images_to_probs" function.
     '''
-    preds, probs = images_to_probs(net, images)
+    preds, probs = images_to_probs(net, images, wavelets)
     # plot the images in the batch, along with predicted and true labels
     fig = plt.figure(figsize=(10, 10))
     for idx in np.arange(images.shape[0]):
@@ -263,16 +266,14 @@ def train_epoch(model, train_dataloader, valid_dataloader, loss_fn, optimizer, s
     model.train()
     # images, _, _ = next(iter(train_dataloader))
     # # grid = torchvision.utils.make_grid(images)
-    # # grid = torchvision.utils.make_grid(images)
     # # writer.add_image("images", grid)
     # writer.add_graph(model, images)
-    # end = time.time()
+
     with tqdm(total=len(train_dataloader),
               desc=f'Step at start {args.step}; Training epoch {epoch + 1}/{args.n_epochs}') as pbar:
-        for x, target, idxs in train_dataloader:
+        for x, y, target, idxs in train_dataloader:
             args.step += 1
-            # data_time.update(time.time() - end)
-            out = model(x.to(args.device))
+            out = model(x.to(args.device), y.to(args.device))
             loss = loss_fn(out, target.to(args.device)).sum(1).mean(0)
 
             optimizer.zero_grad()
@@ -302,7 +303,7 @@ def train_epoch(model, train_dataloader, valid_dataloader, loss_fn, optimizer, s
                         writer.add_scalar('accuracy/eval_acc_class_{}'.format(k), v, args.step)
                     writer.add_scalar('accuracy/accuracy', eval_metrics['accuracy'], args.step)
                     writer.add_figure('predictions vs. labels',
-                                      plot_classes_preds(model, x.to(args.device), target.to(args.device)),
+                                      plot_classes_preds(model, x.to(args.device), y.to(args.device), target.to(args.device)),
                                       global_step=args.step)
                     # save model
                     save_checkpoint(checkpoint={'global_step': args.step,
@@ -330,8 +331,8 @@ def evaluate(model, dataloader, loss_fn, args):
     model.eval()
 
     targets, outputs, losses = [], [], []
-    for x, target, idxs in dataloader:
-        out = model(x.to(args.device))
+    for x, y, target, idxs in dataloader:
+        out = model(x.to(args.device), y.to(args.device))
         loss = loss_fn(out, target.to(args.device))
 
         outputs += [out.cpu()]
@@ -395,7 +396,7 @@ def train_and_evaluate(model, train_dataloader, valid_dataloader, loss_fn, optim
 # --------------------
 
 @torch.enable_grad()
-def grad_cam(model, x, hooks, cls_idx=None):
+def grad_cam(model, x, y, hooks, cls_idx=None):
     """ cf CheXpert: Test Results / Visualization; visualize final conv layer, using grads of final linear layer as weights,
     and performing a weighted sum of the final feature maps using those weights.
     cf Grad-CAM https://arxiv.org/pdf/1610.02391.pdf """
@@ -411,7 +412,7 @@ def grad_cam(model, x, hooks, cls_idx=None):
         lambda module, grad_input, grad_output: linear_grad.append(grad_input))
 
     # run model forward and create a one hot output for the given cls_idx or max class
-    outputs = model(x)
+    outputs = model(x, y)
     if not cls_idx: cls_idx = outputs.argmax(1)
     one_hot = F.one_hot(cls_idx, outputs.shape[1]).float().requires_grad_(True)
 
@@ -452,13 +453,14 @@ def visualize(model, dataloader, grad_cam_hooks, args):
 
     # 1. run through model to compute logits and grad-cam
     imgs, labels, scores, masks, idxs = [], [], [], [], []
-    for x, target, idx in dataloader:
+    for x, y, target, idx in dataloader:
         imgs += [x]
         labels += [target]
         idxs += idx.tolist()
         x = x.to(args.device)
+        y = y.to(args.device)
         scores += [model(x).cpu()]
-        masks += [grad_cam(model, x, grad_cam_hooks).cpu()]
+        masks += [grad_cam(model, x, y, grad_cam_hooks).cpu()]
     imgs, labels, scores, masks = torch.cat(imgs), torch.cat(labels), torch.cat(scores), torch.cat(masks)
 
     # 2. renormalize images and convert everything to numpy for matplotlib
@@ -595,51 +597,17 @@ if __name__ == '__main__':
 
     # load model
     n_classes = len(ChexpertSmall.attr_names)
-    if args.model == 'densenet121':
-        # if args.pretrained:
-        #     model = densenet121(weights=DenseNet121_Weights.IMAGENET1K_V1).to(args.device)
-        # else:
-        model = densenet121().to(args.device)
-        # 1. replace output layer with chexpert number of classes (pretrained loads ImageNet n_classes)
-        model.classifier = nn.Linear(model.classifier.in_features, out_features=n_classes).to(args.device)
-        # 2. init output layer with default torchvision init
-        nn.init.constant_(model.classifier.bias, 0)
-        # 3. store locations of forward and backward hooks for grad-cam
-        grad_cam_hooks = {'forward': model.features.norm5, 'backward': model.classifier}
-        # 4. init optimizer and scheduler
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-        scheduler = None
-    elif args.model == 'wptdensenet121':
-        model = models.my_models.wptdensenet121(args.input_ch).to(args.device)
-        # 1. replace output layer with chexpert number of classes (pretrained loads ImageNet n_classes)
-        model.classifier = nn.Linear(model.classifier.in_features, out_features=n_classes).to(args.device)
-        # 2. init output layer with default torchvision init
-        nn.init.constant_(model.classifier.bias, 0)
-        # 3. store locations of forward and backward hooks for grad-cam
-        grad_cam_hooks = {'forward': model.features.norm5, 'backward': model.classifier}
-        # 4. init optimizer and scheduler
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-        scheduler = None
-    elif args.model == 'resnet152':
-        # if args.pretrained:
-        #     model = resnet152(weights=ResNet152_Weights.IMAGENET1K_V2).to(args.device)
-        # else:
-        model = models.my_models.resnet_152().to(args.device)
+
+    if args.model == 'resnet152':
+        model = resnet152(pretrained=False).to(args.device)
         model.fc = nn.Linear(model.fc.in_features, out_features=n_classes).to(args.device)
         grad_cam_hooks = {'forward': model.layer4, 'backward': model.fc}
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         scheduler = None
     elif args.model == 'dual':
-        model = models.my_models.DualResNet().to(args.device)
+        model = models.my_models.DualResNet(input_channels=args.wpt_nfreq if args.wpt_nfreq is not None else 64).to(args.device)
         model.final_fc1 = nn.Linear(model.final_fc1.in_features, out_features=n_classes).to(args.device)
-        grad_cam_hooks = {'forward': model.layer4, 'backward': model.fc}
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-        scheduler = None
-    elif args.model == 'wpt_resnet152':
-        model = models.my_models.wpt_resnet_152(args.input_ch).to(args.device)
-        model.fc = nn.Linear(model.fc.in_features, out_features=n_classes).to(args.device)
-        model = model.double()
-        grad_cam_hooks = {'forward': model.layer4, 'backward': model.fc}
+        # grad_cam_hooks = {'forward': model.layer4, 'backward': model.fc}
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         scheduler = None
     else:
