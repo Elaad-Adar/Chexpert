@@ -303,9 +303,9 @@ def train_epoch(model, train_dataloader, valid_dataloader, loss_fn, optimizer, s
                     for k, v in eval_metrics['class_acc'].items():
                         writer.add_scalar('accuracy/eval_acc_class_{}'.format(k), v, args.step)
                     writer.add_scalar('accuracy/accuracy', eval_metrics['accuracy'], args.step)
-                    writer.add_figure('predictions vs. labels',
-                                      plot_classes_preds(model, x.to(args.device), y.to(args.device), target.to(args.device)),
-                                      global_step=args.step)
+                    # writer.add_figure('predictions vs. labels',
+                    #                   plot_classes_preds(model, x.to(args.device), y.to(args.device), target.to(args.device)),
+                    #                   global_step=args.step)
                     # save model
                     save_checkpoint(checkpoint={'global_step': args.step,
                                                 'eval_loss': np.sum(list(eval_metrics['loss'].values())),
