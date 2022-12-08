@@ -248,8 +248,9 @@ def plot_classes_preds(net, images, wavelets, labels):
     preds, probs = images_to_probs(net, images, wavelets)
     # plot the images in the batch, along with predicted and true labels
     fig = plt.figure(figsize=(10, 10))
-    for idx in np.arange(images.shape[0]):
-        ax = fig.add_subplot((images.shape[0] // 4), 4, idx+1, xticks=[], yticks=[])
+    num_images = min(images.shape[0], 8)
+    for idx in np.arange(num_images):
+        ax = fig.add_subplot((num_images // 4), 4, idx+1, xticks=[], yticks=[])
         matplotlib_imshow(images[idx], one_channel=True)
         ax.set_title("{0}, {1:.1f}%\n(label: {2})".format(
             ChexpertSmall.attr_names[preds[idx]],
@@ -264,10 +265,10 @@ def plot_classes_preds(net, images, wavelets, labels):
 
 def train_epoch(model, train_dataloader, valid_dataloader, loss_fn, optimizer, scheduler, writer, epoch, args):
     model.train()
-    # images, _, _ = next(iter(train_dataloader))
+    # images, wavelets, _, _ = next(iter(train_dataloader))
     # # grid = torchvision.utils.make_grid(images)
     # # writer.add_image("images", grid)
-    # writer.add_graph(model, images)
+    # writer.add_graph(model, (images, wavelets))
 
     with tqdm(total=len(train_dataloader),
               desc=f'Step at start {args.step}; Training epoch {epoch + 1}/{args.n_epochs}') as pbar:
