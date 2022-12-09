@@ -234,7 +234,7 @@ class DualResNet(nn.Module):
         super(DualResNet, self).__init__()
         self.resnet152 = resnet152(pretrained=False)
         self.resnet = wpt_resnet_50(input_channels=input_channels)
-        self.final_fc1 = nn.Linear(2000, 512)
+        self.final_fc1 = nn.Linear(1000, 512)
 
     def forward(self, x, y):
         x = self.resnet152.conv1(x)
@@ -257,10 +257,11 @@ class DualResNet(nn.Module):
         y = torch.flatten(y, 1)
         y = self.resnet.fc(y)
 
-        x = torch.cat((x, y), 1)
-        x = self.final_fc1(x)
+        # x = torch.cat((x, y), 1)
+        h = x + y
+        h = self.final_fc1(h)
 
-        return x
+        return h
 
 
 def resnet_152(**kwargs):
