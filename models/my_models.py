@@ -238,7 +238,7 @@ class DualResNet(nn.Module):
 
         self.params = nn.ModuleDict({
             'base': nn.ModuleList([self.resnet152, self.final_fc1]),
-            'wavelets': nn.ModuleList(self.resnet)})
+            'wavelets': nn.ModuleList([self.resnet])})
 
     def forward(self, x, y):
         x = self.resnet152.conv1(x)
