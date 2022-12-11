@@ -230,10 +230,10 @@ class WPTResNet(models.ResNet):
 
 
 class DualResNet(nn.Module):
-    def __init__(self, input_channels=64):
+    def __init__(self, input_channels=64, pretrained=False):
         super(DualResNet, self).__init__()
         self.resnet152 = resnet152(pretrained=False)
-        self.resnet = wpt_resnet_50(input_channels=input_channels)
+        self.resnet = wpt_resnet_50(input_channels=input_channels, pretrained=pretrained)
         self.final_fc1 = nn.Linear(1000, 512)
 
     def forward(self, x, y):

@@ -606,7 +606,8 @@ if __name__ == '__main__':
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         scheduler = None
     elif args.model == 'dual':
-        model = models.my_models.DualResNet(input_channels=args.wpt_nfreq if args.wpt_nfreq is not None else 64).to(args.device)
+        model = models.my_models.DualResNet(input_channels=args.wpt_nfreq if args.wpt_nfreq is not None else 64,
+                                            pretrained=args.pretrained).to(args.device)
         model.final_fc1 = nn.Linear(model.final_fc1.in_features, out_features=n_classes).to(args.device)
         # grad_cam_hooks = {'forward': model.layer4, 'backward': model.fc}
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)

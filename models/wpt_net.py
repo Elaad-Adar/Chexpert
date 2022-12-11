@@ -21,8 +21,8 @@ def kaiming_init(module,
 
 
 class WPTResNet(models.ResNet):
-    def __init__(self, input_channels, block, layers, **kwargs):
-        super().__init__(block, layers, **kwargs)
+    def __init__(self, input_channels, block, layers, pretrained, **kwargs):
+        super().__init__(block, layers, pretrained, **kwargs)
 
         if input_channels < 64:
             out_ch = self.layer1[0].conv1.out_channels
@@ -89,30 +89,30 @@ class WPTResNet(models.ResNet):
         return x
 
 
-def wpt_resnet_18(input_channels, **kwargs):
-    model = WPTResNet(input_channels, models.resnet.BasicBlock, [2, 2, 2, 2], **kwargs)
+def wpt_resnet_18(input_channels, pretrained=False, **kwargs):
+    model = WPTResNet(input_channels, models.resnet.BasicBlock, [2, 2, 2, 2], pretrained, **kwargs)
     return model
 
 
-def wpt_resnet_34(input_channels, **kwargs):
-    model = WPTResNet(input_channels, models.resnet.BasicBlock, [3, 4, 6, 3], **kwargs)
+def wpt_resnet_34(input_channels, pretrained=False, **kwargs):
+    model = WPTResNet(input_channels, models.resnet.BasicBlock, [3, 4, 6, 3], pretrained, **kwargs)
     return model
 
 
-def wpt_resnet_50(input_channels, **kwargs):
-    model = WPTResNet(input_channels, models.resnet.Bottleneck, [3, 4, 6, 3], **kwargs)
+def wpt_resnet_50(input_channels, pretrained=False, **kwargs):
+    model = WPTResNet(input_channels, models.resnet.Bottleneck, [3, 4, 6, 3], pretrained, **kwargs)
     return model
 
 
-def wpt_resnet_152(input_channels, **kwargs):
-    model = WPTResNet(input_channels, models.resnet.Bottleneck, [3, 8, 36, 3], **kwargs)
+def wpt_resnet_152(input_channels, pretrained=False, **kwargs):
+    model = WPTResNet(input_channels, models.resnet.Bottleneck, [3, 8, 36, 3], pretrained, **kwargs)
     return model
 
 if __name__ == '__main__':
     from torchsummary import summary
     import models.my_models
 
-    summary(models.my_models.resnet_152(), (3, 320, 320))
+    summary(models.my_models.DualResNet(input_channels=32), [(3, 320, 320), (32, 32, 32)])
 
     # model = wpt_resnet_50(64)
     # summary(model, (64, 64, 64))
