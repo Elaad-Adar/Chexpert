@@ -614,10 +614,10 @@ if __name__ == '__main__':
         # grad_cam_hooks = {'forward': model.layer4, 'backward': model.fc}
         # optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         optimizer = utils.MultipleOptimizer(torch.optim.Adam(
-                                                model.resnet152.parameters(),
+                                                model.params.base.parameters(),
                                                 lr=args.lr1),
                                             torch.optim.SGD(
-                                                model.resnet.parameters(),
+                                                model.params.wavelets.parameters(),
                                                 lr=args.lr2,
                                                 momentum=0.9,
                                                 weight_decay=4e-4)

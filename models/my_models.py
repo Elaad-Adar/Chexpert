@@ -236,6 +236,10 @@ class DualResNet(nn.Module):
         self.resnet = wpt_resnet_50(input_channels=input_channels, pretrained=pretrained)
         self.final_fc1 = nn.Linear(1000, 512)
 
+        self.params = nn.ModuleDict({
+            'base': nn.ModuleList([self.resnet152, self.final_fc1]),
+            'wavelets': nn.ModuleList(self.resnet)})
+
     def forward(self, x, y):
         x = self.resnet152.conv1(x)
         x = self.resnet152.bn1(x)
