@@ -90,22 +90,22 @@ class WPTResNet(models.ResNet):
 
 
 def wpt_resnet_18(input_channels, pretrained=False, **kwargs):
-    model = WPTResNet(input_channels, models.resnet.BasicBlock, [2, 2, 2, 2], pretrained, **kwargs)
+    model = WPTResNet(input_channels, models.resnet.BasicBlock, [2, 2, 2, 2], pretrained=pretrained, **kwargs)
     return model
 
 
 def wpt_resnet_34(input_channels, pretrained=False, **kwargs):
-    model = WPTResNet(input_channels, models.resnet.BasicBlock, [3, 4, 6, 3], pretrained, **kwargs)
+    model = WPTResNet(input_channels, models.resnet.BasicBlock, [3, 4, 6, 3], pretrained=pretrained, **kwargs)
     return model
 
 
 def wpt_resnet_50(input_channels, pretrained=False, **kwargs):
-    model = WPTResNet(input_channels, models.resnet.Bottleneck, [3, 4, 6, 3], pretrained, **kwargs)
+    model = WPTResNet(input_channels, models.resnet.Bottleneck, [3, 4, 6, 3], pretrained=pretrained, **kwargs)
     return model
 
 
 def wpt_resnet_152(input_channels, pretrained=False, **kwargs):
-    model = WPTResNet(input_channels, models.resnet.Bottleneck, [3, 8, 36, 3], pretrained, **kwargs)
+    model = WPTResNet(input_channels, models.resnet.Bottleneck, [3, 8, 36, 3], pretrained=pretrained, **kwargs)
     return model
 
 if __name__ == '__main__':
