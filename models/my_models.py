@@ -249,13 +249,13 @@ class DualResNet(nn.Module):
         x = torch.flatten(x, 1)
         x = self.resnet152.fc(x)
 
-        y = self.resnet.layer1(y)
-        y = self.resnet.layer2(y)
-        y = self.resnet.layer3(y)
-        y = self.resnet.layer4(y)
-        y = self.resnet.avgpool(y)
+        y = self.resnet.model.layer1(y)
+        y = self.resnet.model.layer2(y)
+        y = self.resnet.model.layer3(y)
+        y = self.resnet.model.layer4(y)
+        y = self.resnet.model.avgpool(y)
         y = torch.flatten(y, 1)
-        y = self.resnet.fc(y)
+        y = self.resnet.model.fc(y)
 
         # x = torch.cat((x, y), 1)
         h = x + y
