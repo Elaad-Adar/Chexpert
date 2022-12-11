@@ -15,6 +15,10 @@ class MultipleOptimizer(object):
         for op in self.optimizers:
             op.step()
 
+    def state_dict(self):
+        for op in self.optimizers:
+            op.state_dict()
+
 def closest_power(x):
     possible_results = floor(log(x, 2)), ceil(log(x, 2))
     p = min(possible_results, key=lambda z: abs(x - 2 ** z))
