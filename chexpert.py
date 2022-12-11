@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib
 
 import models.my_models
+import utils
 from Wavelets import wpt_transform
 
 matplotlib.use('Agg')
@@ -68,7 +69,8 @@ parser.add_argument('--pretrained', action='store_true',
                     help='Use ImageNet pretrained model and normalize data mean and std.')
 parser.add_argument('--batch_size', type=int, default=16, help='Dataloaders batch size.')
 parser.add_argument('--n_epochs', type=int, default=1, help='Number of epochs to train.')
-parser.add_argument('--lr', type=float, default=1e-4, help='Learning rate.')
+parser.add_argument('--lr1', type=float, default=1e-4, help='resnet 152 Learning rate.')
+parser.add_argument('--lr2', type=float, default=0.1, help='resnet 50 Learning rate.')
 parser.add_argument('--lr_warmup_steps', type=float, default=0,
                     help='Linear warmup of the learning rate for lr_warmup_steps number of steps.')
 parser.add_argument('--lr_decay_factor', type=float, default=0.97,
@@ -610,7 +612,16 @@ if __name__ == '__main__':
                                             pretrained=args.pretrained).to(args.device)
         model.final_fc1 = nn.Linear(model.final_fc1.in_features, out_features=n_classes).to(args.device)
         # grad_cam_hooks = {'forward': model.layer4, 'backward': model.fc}
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+        # optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+        optimizer = utils.MultipleOptimizer(torch.optim.Adam(
+                                                model.resnet152.parameters(),
+                                                lr=args.lr1),
+                                            torch.optim.SGD(
+                                                model.resnet.parameters(),
+                                                lr=args.lr2,
+                                                momentum=0.9,
+                                                weight_decay=4e-4)
+                                            )
         scheduler = None
     else:
         raise RuntimeError('Model architecture not supported.')
