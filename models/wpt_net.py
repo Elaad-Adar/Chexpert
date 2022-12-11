@@ -1,4 +1,5 @@
 import torch
+from torch.hub import load_state_dict_from_url
 from torchvision import models
 import torch.nn as nn
 
@@ -21,8 +22,8 @@ def kaiming_init(module,
 
 
 class WPTResNet(models.ResNet):
-    def __init__(self, input_channels, block, layers, pretrained, **kwargs):
-        super().__init__(block, layers, pretrained, **kwargs)
+    def __init__(self, input_channels, block, layers, **kwargs):
+        super().__init__(block, layers, **kwargs)
 
         if input_channels < 64:
             out_ch = self.layer1[0].conv1.out_channels
@@ -89,23 +90,51 @@ class WPTResNet(models.ResNet):
         return x
 
 
+model_urls = {
+    'resnet18': 'https://download.pytorch.org/models/resnet18-f37072fd.pth',
+    'resnet34': 'https://download.pytorch.org/models/resnet34-b627a593.pth',
+    'resnet50': 'https://download.pytorch.org/models/resnet50-0676ba61.pth',
+    'resnet101': 'https://download.pytorch.org/models/resnet101-63fe2227.pth',
+    'resnet152': 'https://download.pytorch.org/models/resnet152-394f9c45.pth',
+    'resnext50_32x4d': 'https://download.pytorch.org/models/resnext50_32x4d-7cdf4587.pth',
+    'resnext101_32x8d': 'https://download.pytorch.org/models/resnext101_32x8d-8ba56ff5.pth',
+    'wide_resnet50_2': 'https://download.pytorch.org/models/wide_resnet50_2-95faca4d.pth',
+    'wide_resnet101_2': 'https://download.pytorch.org/models/wide_resnet101_2-32ee1156.pth',
+}
+
 def wpt_resnet_18(input_channels, pretrained=False, **kwargs):
-    model = WPTResNet(input_channels, models.resnet.BasicBlock, [2, 2, 2, 2], pretrained=pretrained, **kwargs)
+    model = WPTResNet(input_channels, models.resnet.BasicBlock, [2, 2, 2, 2], **kwargs)
+    if pretrained:
+        state_dict = load_state_dict_from_url(model_urls['resnet18'],
+                                              progress=True)
+        model.load_state_dict(state_dict)
     return model
 
 
 def wpt_resnet_34(input_channels, pretrained=False, **kwargs):
-    model = WPTResNet(input_channels, models.resnet.BasicBlock, [3, 4, 6, 3], pretrained=pretrained, **kwargs)
+    model = WPTResNet(input_channels, models.resnet.BasicBlock, [3, 4, 6, 3], **kwargs)
+    if pretrained:
+        state_dict = load_state_dict_from_url(model_urls['resnet34'],
+                                              progress=True)
+        model.load_state_dict(state_dict)
     return model
 
 
 def wpt_resnet_50(input_channels, pretrained=False, **kwargs):
-    model = WPTResNet(input_channels, models.resnet.Bottleneck, [3, 4, 6, 3], pretrained=pretrained, **kwargs)
+    model = WPTResNet(input_channels, models.resnet.Bottleneck, [3, 4, 6, 3], **kwargs)
+    if pretrained:
+        state_dict = load_state_dict_from_url(model_urls['resnet152'],
+                                              progress=True)
+        model.load_state_dict(state_dict)
     return model
 
 
 def wpt_resnet_152(input_channels, pretrained=False, **kwargs):
-    model = WPTResNet(input_channels, models.resnet.Bottleneck, [3, 8, 36, 3], pretrained=pretrained, **kwargs)
+    model = WPTResNet(input_channels, models.resnet.Bottleneck, [3, 8, 36, 3], **kwargs)
+    if pretrained:
+        state_dict = load_state_dict_from_url(model_urls['resnet50'],
+                                              progress=True)
+        model.load_state_dict(state_dict)
     return model
 
 if __name__ == '__main__':
