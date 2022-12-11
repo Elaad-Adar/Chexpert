@@ -261,8 +261,8 @@ class DualResNet(nn.Module):
         y = torch.flatten(y, 1)
         y = self.resnet.model.fc(y)
 
-        # x = torch.cat((x, y), 1)
-        h = x + y
+        h = torch.cat((x, y), 1)
+        # h = x + y
         h = self.final_fc1(h)
 
         return h
