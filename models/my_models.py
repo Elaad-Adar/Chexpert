@@ -234,7 +234,7 @@ class DualResNet(nn.Module):
         super(DualResNet, self).__init__()
         self.resnet152 = resnet152(pretrained=False)
         self.resnet = wpt_resnet_50(input_channels=input_channels, pretrained=pretrained)
-        self.final_fc1 = nn.Linear(1000, 512)
+        self.final_fc1 = nn.Linear(2000, 512)
 
         self.params = nn.ModuleDict({
             'base': nn.ModuleList([self.resnet152, self.final_fc1]),
