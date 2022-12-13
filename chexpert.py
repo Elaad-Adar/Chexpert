@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as T
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader
 
 import numpy as np
 import matplotlib
@@ -26,6 +26,8 @@ import pprint
 # dataset and models
 from dataset import ChexpertSmall, extract_patient_ids
 from torchvision.models import densenet121, resnet152
+import models.multichannel_resnet
+from models.multichannel_resnet import get_arch as Resnet
 
 parser = argparse.ArgumentParser()
 # action
@@ -194,13 +196,10 @@ def compute_metrics(outputs, targets, losses):
         precision[i], recall[i], _ = precision_recall_curve(targets[:, i], outputs[:, i])
         fpr[i], tpr[i], precision[i], recall[i] = fpr[i].tolist(), tpr[i].tolist(), precision[i].tolist(), recall[
             i].tolist()
-        # add_pr_curve_tensorboard(i, _outputs[:, i], targets[:, i], global_step=args.step)
-    mean_auc = sum(aucs.values()) / len(aucs) * 100
-    new_mean_auc = np.nanmean(list(aucs.values())) * 100
+    mean_auc = sum(aucs.values()) / len(aucs)
 
     metrics = {
         'mean_auc': mean_auc,
-        'new_mean_auc': new_mean_auc,
         'class_acc': acc_score,
         'accuracy': accuracy,
         'aucs': aucs,
@@ -262,11 +261,10 @@ def plot_classes_preds(net, images, labels):
 def train_epoch(model, train_dataloader, valid_dataloader, loss_fn, optimizer, scheduler, writer, epoch, args):
     model.train()
     # images, _, _ = next(iter(train_dataloader))
-    # # grid = torchvision.utils.make_grid(images)
-    # # grid = torchvision.utils.make_grid(images)
-    # # writer.add_image("images", grid)
+    # grid = torchvision.utils.make_grid(images)
+    # writer.add_image("images", grid)
     # writer.add_graph(model, images)
-    # end = time.time()
+
     with tqdm(total=len(train_dataloader),
               desc=f'Step at start {args.step}; Training epoch {epoch + 1}/{args.n_epochs}') as pbar:
         for x, target, idxs in train_dataloader:
@@ -596,9 +594,6 @@ if __name__ == '__main__':
     # load model
     n_classes = len(ChexpertSmall.attr_names)
     if args.model == 'densenet121':
-        # if args.pretrained:
-        #     model = densenet121(weights=DenseNet121_Weights.IMAGENET1K_V1).to(args.device)
-        # else:
         model = densenet121().to(args.device)
         # 1. replace output layer with chexpert number of classes (pretrained loads ImageNet n_classes)
         model.classifier = nn.Linear(model.classifier.in_features, out_features=n_classes).to(args.device)
@@ -609,29 +604,21 @@ if __name__ == '__main__':
         # 4. init optimizer and scheduler
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         scheduler = None
-    elif args.model == 'wptdensenet121':
-        model = models.my_models.wptdensenet121(args.input_ch).to(args.device)
+    elif args.model == 'mcresnet':
+        resnet152_4_channel = Resnet(152, 5)
+        model = resnet152_4_channel(pretrained=args.pretrained).to(args.device)
         # 1. replace output layer with chexpert number of classes (pretrained loads ImageNet n_classes)
-        model.classifier = nn.Linear(model.classifier.in_features, out_features=n_classes).to(args.device)
+        model.fc = nn.Linear(model.fc.in_features, out_features=n_classes).to(args.device)
         # 2. init output layer with default torchvision init
-        nn.init.constant_(model.classifier.bias, 0)
+        nn.init.constant_(model.fc.bias, 0)
         # 3. store locations of forward and backward hooks for grad-cam
         grad_cam_hooks = {'forward': model.features.norm5, 'backward': model.classifier}
         # 4. init optimizer and scheduler
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         scheduler = None
     elif args.model == 'resnet152':
-        # if args.pretrained:
-        #     model = resnet152(weights=ResNet152_Weights.IMAGENET1K_V2).to(args.device)
-        # else:
         model = models.my_models.resnet_152().to(args.device)
         model.fc = nn.Linear(model.fc.in_features, out_features=n_classes).to(args.device)
-        grad_cam_hooks = {'forward': model.layer4, 'backward': model.fc}
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-        scheduler = None
-    elif args.model == 'dual':
-        model = models.my_models.DualResNet().to(args.device)
-        model.final_fc1 = nn.Linear(model.final_fc1.in_features, out_features=n_classes).to(args.device)
         grad_cam_hooks = {'forward': model.layer4, 'backward': model.fc}
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         scheduler = None
