@@ -612,7 +612,7 @@ if __name__ == '__main__':
         # 2. init output layer with default torchvision init
         nn.init.constant_(model.fc.bias, 0)
         # 3. store locations of forward and backward hooks for grad-cam
-        grad_cam_hooks = {'forward': model.features.norm5, 'backward': model.classifier}
+        grad_cam_hooks = {'forward': model.layer4, 'backward': model.fc}
         # 4. init optimizer and scheduler
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         scheduler = None
