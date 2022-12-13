@@ -8,6 +8,8 @@ import numpy as np
 import matplotlib
 
 import models.my_models
+import models.myResnet
+
 import utils
 from Wavelets import wpt_transform
 
@@ -200,8 +202,8 @@ def compute_metrics(outputs, targets, losses):
         fpr[i], tpr[i], precision[i], recall[i] = fpr[i].tolist(), tpr[i].tolist(), precision[i].tolist(), recall[
             i].tolist()
         # add_pr_curve_tensorboard(i, _outputs[:, i], targets[:, i], global_step=args.step)
-    mean_auc = sum(aucs.values()) / len(aucs) * 100
-    new_mean_auc = np.nanmean(list(aucs.values())) * 100
+    mean_auc = sum(aucs.values()) / len(aucs)
+    new_mean_auc = np.nanmean(list(aucs.values()))
 
     metrics = {
         'mean_auc': mean_auc,
@@ -218,6 +220,7 @@ def compute_metrics(outputs, targets, losses):
 
     return metrics
 
+
 def images_to_probs(net, images, wavelets):
     '''
     Generates predictions and corresponding probabilities from a trained
@@ -229,15 +232,17 @@ def images_to_probs(net, images, wavelets):
     preds = np.squeeze(preds_tensor.cpu().numpy())
     return preds, [F.softmax(el, dim=0)[i].item() for i, el in zip(preds, output)]
 
+
 def matplotlib_imshow(img, one_channel=False):
     if one_channel:
         img = img.mean(dim=0)
-    img = img / 2 + 0.5     # unnormalize
+    img = img / 2 + 0.5  # unnormalize
     npimg = img.cpu().numpy()
     if one_channel:
         plt.imshow(npimg, cmap="Greys")
     else:
         plt.imshow(np.transpose(npimg, (1, 2, 0)))
+
 
 def plot_classes_preds(net, images, wavelets, labels):
     '''
@@ -252,15 +257,17 @@ def plot_classes_preds(net, images, wavelets, labels):
     fig = plt.figure(figsize=(10, 10))
     num_images = min(images.shape[0], 8)
     for idx in np.arange(num_images):
-        ax = fig.add_subplot((num_images // 4), 4, idx+1, xticks=[], yticks=[])
+        ax = fig.add_subplot((num_images // 4), 4, idx + 1, xticks=[], yticks=[])
         matplotlib_imshow(images[idx], one_channel=True)
         ax.set_title("{0}, {1:.1f}%\n(label: {2})".format(
             ChexpertSmall.attr_names[preds[idx]],
             probs[idx] * 100.0,
             ChexpertSmall.attr_names[int(labels[idx][preds[idx]].item())]),
-                    color=("green" if preds[idx] == labels[idx][preds[idx]].item() else "red"))
+            color=("green" if preds[idx] == labels[idx][preds[idx]].item() else "red"))
     fig.tight_layout()
     return fig
+
+
 # --------------------
 # Train and evaluate
 # --------------------
@@ -282,7 +289,8 @@ def train_epoch(model, train_dataloader, valid_dataloader, loss_fn, optimizer, s
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            # if scheduler and args.step >= args.lr_warmup_steps: scheduler.step()
+            if scheduler is not None:
+                scheduler.step()
 
             # record
             if args.step % args.log_interval == 0:
@@ -571,7 +579,6 @@ if __name__ == '__main__':
         args.output_dir: args.output_dir = os.path.join('results', time.strftime('%Y-%m-%d_%H-%M', time.gmtime()))
 
     # make new folders if they don't exist
-    # writer = SummaryWriter(logdir=args.output_dir)
     writer = SummaryWriter()
     # creates output_dir
     if not os.path.exists(os.path.join(args.output_dir, 'vis')):
@@ -601,11 +608,17 @@ if __name__ == '__main__':
     # load model
     n_classes = len(ChexpertSmall.attr_names)
 
-    if args.model == 'resnet152':
-        model = resnet152(pretrained=False).to(args.device)
+    # if args.model == 'resnet152':
+    #     model = resnet152(pretrained=False).to(args.device)
+    #     model.fc = nn.Linear(model.fc.in_features, out_features=n_classes).to(args.device)
+    #     grad_cam_hooks = {'forward': model.layer4, 'backward': model.fc}
+    #     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    #     scheduler = None
+    if args.model == 'myresnet':
+        model = models.myResnet.resnet152(add_channels=32).to(args.device)
         model.fc = nn.Linear(model.fc.in_features, out_features=n_classes).to(args.device)
-        grad_cam_hooks = {'forward': model.layer4, 'backward': model.fc}
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+        # grad_cam_hooks = {'forward': model.layer4, 'backward': model.fc}
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr1)
         scheduler = None
     elif args.model == 'dual':
         model = models.my_models.DualResNet(input_channels=args.wpt_nfreq if args.wpt_nfreq is not None else 64,
@@ -614,14 +627,14 @@ if __name__ == '__main__':
         # grad_cam_hooks = {'forward': model.layer4, 'backward': model.fc}
         # optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         optimizer = utils.MultipleOptimizer(torch.optim.Adam(
-                                                model.params.base.parameters(),
-                                                lr=args.lr1),
-                                            torch.optim.SGD(
-                                                model.params.wavelets.parameters(),
-                                                lr=args.lr2,
-                                                momentum=0.9,
-                                                weight_decay=4e-4)
-                                            )
+            model.params.base.parameters(),
+            lr=args.lr1),
+            torch.optim.SGD(
+                model.params.wavelets.parameters(),
+                lr=args.lr2,
+                momentum=0.9,
+                weight_decay=4e-4)
+        )
         scheduler = None
     else:
         raise RuntimeError('Model architecture not supported.')
